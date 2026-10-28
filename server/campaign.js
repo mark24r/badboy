@@ -72,6 +72,18 @@ export function computeCommitment(state) {
   return sha256(JSON.stringify(poolPayload(state)));
 }
 
+export function validateCampaignState(state) {
+  const compatible = state?.campaignId === CAMPAIGN_ID
+    && state.poolSchema === POOL_SCHEMA
+    && Array.isArray(state.pool)
+    && state.pool.length === TOTAL_ENTRIES;
+  if (!compatible) throw new Error('The stored campaign uses an incompatible prize-pool schema.');
+  if (computeCommitment(state) !== state.commitment) {
+    throw new Error('Campaign commitment verification failed. Refusing to alter the outcome pool.');
+  }
+  return state;
+}
+
 export function resultPayload(entry) {
   return {
     schema: 'tiketi.result.v1',

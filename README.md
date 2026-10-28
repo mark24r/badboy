@@ -81,7 +81,7 @@ npx vercel link
 npx vercel deploy --prod
 ```
 
-Vercel's filesystem is ephemeral, so the hosted demo stores its campaign in that function instance's temporary storage. Entries and results can reset between instances or deployments; this is suitable for a product demonstration, not a shared production campaign. The Vercel adapter refuses `PAYMENTS_MODE=live`. Use a conventional Node host for the existing local JSON mode, or replace the store with a production database and atomic transactions before enabling real payments.
+When `DATABASE_URL` or `POSTGRES_URL` is present, the app stores the campaign in Postgres. Every payment allocation and spin runs in a transaction with `SELECT ... FOR UPDATE`, so separate Vercel instances cannot allocate the same pool position. Demo and live campaigns use separate rows, which keeps simulated entries out of the live campaign and gives live mode a fresh commitment on first use. Without a database URL, local development uses the JSON store and Vercel demo mode falls back to ephemeral storage; Vercel live mode refuses to start without Postgres.
 
 ## Paystack M-Pesa integration
 
@@ -91,6 +91,7 @@ For a properly hosted live environment, copy `.env.example` to `.env` and config
 
 ```dotenv
 PAYMENTS_MODE=live
+DATABASE_URL=postgresql://...
 PAYSTACK_SECRET_KEY=sk_live_...
 ```
 
@@ -102,17 +103,17 @@ POST /api/payments/paystack/webhook
 
 The webhook follows Paystack's [signed-webhook guidance](https://paystack.com/docs/payments/webhooks/): the raw request body is checked with HMAC-SHA512 before processing. Both webhook confirmation and throttled status checks independently call Paystack's transaction verification API. A spin unlocks only after the server confirms a live, successful mobile-money transaction with the exact entry reference, metadata, KES currency, and **50,000-subunit** amount. Mismatches go to manual review rather than receiving an entry.
 
-**Real charges remain disabled on the current Vercel demo.** Its filesystem is ephemeral, and the adapter refuses `PAYMENTS_MODE=live`. Do not enable live payments until the campaign store has been replaced with a persistent production database and atomic payment/entry transactions. The local JSON mode is suitable only for a conventional single-process Node host, not a multi-instance live deployment. The website never asks for an M-Pesa PIN; customers enter it only in the phone's official prompt.
+Demo mode is the default and never calls Paystack. Live activation requires both persistent Postgres storage and a live server key; Vercel live mode still refuses to start if Postgres is missing. The local JSON mode is suitable only for a conventional single-process Node host, not a multi-instance live deployment. The website never asks for an M-Pesa PIN; customers enter it only in the phone's official prompt.
 
 ## Important before a real launch
 
 This is a functional reference implementation, not a claim of legal or production certification.
 
 - Paid chance-based prize promotions in Kenya may require **Betting Control and Licensing Board (BCLB)** authorisation and other approvals. Obtain qualified Kenyan legal advice and all required approvals before accepting money.
-- Replace the single-process JSON store with a production database and atomic payment/entry transactions. Add durable idempotency, reconciliation, refund handling, monitoring, backups, rate limiting, and queue-based callback processing.
+- The included Postgres store uses row-level locks for atomic payment/entry allocation. Before a real launch, add scheduled payment reconciliation, refund handling, monitoring, backups, durable rate limiting, and queue-based webhook processing.
 - Complete an independent security review and fairness audit. Commitments and hash chains make changes detectable; they do not prove the operator's infrastructure is secure or legally compliant.
 - Publish operator identity, final event/prize details, eligibility, claim deadlines, cancellation/refund rules, a Kenya Data Protection Act-compliant privacy notice, and responsible-participation controls.
-- Remove demo seed entries before a real campaign and keep the outcome-pool secret in a properly secured secrets/data store.
+- Keep demo entries out of the live campaign and protect the outcome pool and salt in the secured Postgres store. Demo and live rows are separate by default.
 - Verify Paystack M-Pesa charge, webhook, and transaction-verification behaviour against Paystack's current documentation and your account's Kenya mobile-money enablement.
 
 ## Main files
@@ -124,5 +125,7 @@ This is a functional reference implementation, not a claim of legal or productio
 - `server/campaign.js` — committed pool, payment ordering, receipts, and public projections
 - `server/paystack.js` — server-only Paystack charge, verification, and webhook-signature integration
 - `server/index.js` — API, Paystack webhook handling, and app server
+- `server/store.js` — Postgres persistence with row-level locking, plus the local JSON fallback
 - `server/campaign.test.js` — core fairness and integrity tests
 - `server/paystack.test.js` — mocked Paystack request, validation, and signature tests
+- `server/store.test.js` — storage rollback, persistence, and allocation tests

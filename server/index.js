@@ -3,9 +3,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import {
+  CAMPAIGN_ID,
   ENTRY_PRICE,
   createPendingEntry,
-  loadOrCreateCampaign,
   markEntryPaid,
   normalizeEmail,
   normalizePhone,
@@ -13,7 +13,6 @@ import {
   publicCampaign,
   revealEntry,
   revealedPool,
-  saveCampaign,
 } from './campaign.js';
 import {
   initiatePaystackMpesa,
@@ -23,6 +22,7 @@ import {
   validatePaystackTransaction,
   verifyPaystackTransaction,
 } from './paystack.js';
+import { createCampaignStore, postgresConfigured } from './store.js';
 
 const moduleFile = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(moduleFile);
@@ -34,12 +34,11 @@ const dataFile = process.env.DATA_FILE || (isVercel
 const paymentMode = process.env.PAYMENTS_MODE === 'live' ? 'live' : 'demo';
 const isProduction = process.env.NODE_ENV === 'production' || isVercel;
 
-if (isVercel && paymentMode === 'live') {
-  throw new Error('Live payments require persistent production storage and are disabled on the ephemeral Vercel demo.');
+if (isVercel && paymentMode === 'live' && !postgresConfigured()) {
+  throw new Error('Live payments require persistent Postgres storage on Vercel.');
 }
 
-const state = loadOrCreateCampaign(dataFile, { demo: paymentMode === 'demo' });
-
+const store = await createCampaignStore({ dataFile, paymentMode, isVercel });
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({
@@ -55,6 +54,10 @@ app.use((request, response, next) => {
   next();
 });
 
+const asyncRoute = (handler) => (request, response, next) => {
+  Promise.resolve(handler(request, response, next)).catch(next);
+};
+
 const paymentAttempts = new Map();
 function paymentRateLimit(request, response, next) {
   const now = Date.now();
@@ -68,16 +71,17 @@ function paymentRateLimit(request, response, next) {
   return next();
 }
 
-function campaignResponse() {
+function campaignResponse(state) {
   return {
     ...publicCampaign(state),
     paymentMode,
     paymentProvider: 'paystack',
-    livePaymentsConfigured: paymentMode === 'live' && paystackConfigured({ live: true }),
+    persistentStorage: store.persistent,
+    livePaymentsConfigured: paymentMode === 'live' && store.persistent && paystackConfigured({ live: true }),
   };
 }
 
-function findEntry(id) {
+function findEntry(state, id) {
   return state.entries.find((entry) => entry.id === id);
 }
 
@@ -89,9 +93,11 @@ function sendError(response, error) {
 
 const paystackVerificationTimes = new Map();
 
-async function reconcilePaystackEntry(entry) {
+function applyPaystackTransaction(state, entryId, data) {
+  const entry = findEntry(state, entryId);
+  if (!entry) throw new Error('Entry not found.');
   if (entry.paymentStatus === 'paid') return entry;
-  const data = await verifyPaystackTransaction(entry.paystackReference);
+
   entry.paystackStatus = data.status || null;
   entry.paystackTransactionId = data.id ? String(data.id) : entry.paystackTransactionId;
   entry.paystackPaidAt = data.paid_at || data.paidAt || entry.paystackPaidAt;
@@ -126,34 +132,38 @@ async function reconcilePaystackEntry(entry) {
 }
 
 app.get('/api/health', (request, response) => {
-  response.json({ ok: true, mode: paymentMode, provider: 'paystack', storage: isVercel ? 'ephemeral-demo' : 'local-json' });
+  response.json({
+    ok: true,
+    mode: paymentMode,
+    provider: 'paystack',
+    storage: store.kind,
+    persistentStorage: store.persistent,
+  });
 });
 
-app.get('/api/campaign', (request, response) => {
-  response.json(campaignResponse());
-});
+app.get('/api/campaign', asyncRoute(async (request, response) => {
+  response.json(campaignResponse(await store.read()));
+}));
 
-app.get('/api/campaign/ledger', (request, response) => {
+app.get('/api/campaign/ledger', asyncRoute(async (request, response) => {
+  const state = await store.read();
   response.json({
     schema: 'tiketi.public-ledger.v1',
     campaignId: state.campaignId,
     commitment: state.commitment,
     ledgerHead: state.ledgerHead,
     ledgerLength: state.ledgerLength,
-    entries: [...campaignResponse().ledger].reverse(),
+    entries: [...campaignResponse(state).ledger].reverse(),
   });
-});
+}));
 
-app.get('/api/campaign/reveal', (request, response) => {
-  try {
-    response.json(revealedPool(state));
-  } catch (error) {
-    sendError(response, error);
-  }
-});
+app.get('/api/campaign/reveal', asyncRoute(async (request, response) => {
+  response.json(revealedPool(await store.read()));
+}));
 
-app.post('/api/payments/initiate', paymentRateLimit, async (request, response) => {
-  let entry;
+app.post('/api/payments/initiate', paymentRateLimit, asyncRoute(async (request, response) => {
+  let entryId = null;
+  let chargeConfirmedStarted = false;
   try {
     if (request.body?.acceptedTerms !== true) {
       throw new Error('Confirm that you are 18+ and accept the drop terms before entering.');
@@ -161,8 +171,7 @@ app.post('/api/payments/initiate', paymentRateLimit, async (request, response) =
     const phone = normalizePhone(request.body?.phone);
 
     if (paymentMode === 'demo') {
-      entry = createPendingEntry(state, phone);
-      saveCampaign(state, dataFile);
+      const entry = await store.transact((state) => createPendingEntry(state, phone));
       return response.status(202).json({
         entry: playerEntry(entry),
         mode: 'demo',
@@ -171,45 +180,58 @@ app.post('/api/payments/initiate', paymentRateLimit, async (request, response) =
     }
 
     const email = normalizeEmail(request.body?.email);
-    if (!paystackConfigured({ live: true })) {
-      const error = new Error('Live Paystack payments are not configured on this server.');
+    if (!store.persistent || !paystackConfigured({ live: true })) {
+      const error = new Error('Live Paystack payments require persistent storage and a live server key.');
       error.status = 503;
       throw error;
     }
 
-    entry = createPendingEntry(state, phone, undefined, { email, paymentMethod: 'Paystack M-Pesa' });
-    entry.paystackReference = paystackReferenceForEntry(entry.id);
-    saveCampaign(state, dataFile);
+    const entry = await store.transact((state) => {
+      const pending = createPendingEntry(state, phone, undefined, { email, paymentMethod: 'Paystack M-Pesa' });
+      pending.paystackReference = paystackReferenceForEntry(pending.id);
+      return pending;
+    });
+    entryId = entry.id;
 
     const charge = await initiatePaystackMpesa({
       phone,
       email,
       amount: ENTRY_PRICE,
       entryId: entry.id,
-      campaignId: state.campaignId,
+      campaignId: CAMPAIGN_ID,
       reference: entry.paystackReference,
     });
-    entry.paystackStatus = charge.status || 'pending';
-    entry.paystackTransactionId = charge.id ? String(charge.id) : entry.paystackTransactionId;
-    saveCampaign(state, dataFile);
+    chargeConfirmedStarted = true;
+    await store.transact((state) => {
+      const pending = findEntry(state, entryId);
+      pending.paystackStatus = charge.status || 'pending';
+      pending.paystackTransactionId = charge.id ? String(charge.id) : pending.paystackTransactionId;
+      return pending;
+    });
     return response.status(202).json({
       entry: playerEntry(entry),
       mode: 'live',
       message: charge.display_text || 'Check your phone for the M-Pesa prompt from Paystack.',
     });
   } catch (error) {
-    if (entry && entry.paymentStatus === 'pending') {
-      entry.paymentStatus = error.ambiguous ? 'review' : 'failed';
-      entry.failureReason = error.ambiguous
-        ? 'Paystack could not confirm whether this charge started. Reconcile it before retrying.'
-        : 'Could not initiate Paystack M-Pesa payment.';
-      saveCampaign(state, dataFile);
+    if (entryId) {
+      await store.transact((state) => {
+        const entry = findEntry(state, entryId);
+        if (entry?.paymentStatus === 'pending') {
+          const needsReview = error.ambiguous || chargeConfirmedStarted;
+          entry.paymentStatus = needsReview ? 'review' : 'failed';
+          entry.failureReason = needsReview
+            ? 'Paystack could not confirm whether this charge started. Reconcile it before retrying.'
+            : 'Could not initiate Paystack M-Pesa payment.';
+        }
+        return entry;
+      }).catch((updateError) => console.error(`Could not record Paystack initiation failure: ${updateError.message}`));
     }
     return sendError(response, error);
   }
-});
+}));
 
-app.post('/api/payments/paystack/webhook', async (request, response) => {
+app.post('/api/payments/paystack/webhook', asyncRoute(async (request, response) => {
   if (paymentMode !== 'live') {
     return response.status(403).json({ error: 'Paystack webhooks are disabled in demo mode.' });
   }
@@ -220,39 +242,35 @@ app.post('/api/payments/paystack/webhook', async (request, response) => {
   const event = request.body;
   if (event?.event !== 'charge.success') return response.json({ received: true });
   const reference = event.data?.reference;
+  const state = await store.read();
   const entry = state.entries.find((item) => item.paystackReference === reference);
   if (!entry) {
     console.warn('Received a signed Paystack webhook for an unknown payment reference.');
     return response.json({ received: true });
   }
+  if (entry.paymentStatus === 'paid') return response.json({ received: true });
 
-  try {
-    await reconcilePaystackEntry(entry);
-    saveCampaign(state, dataFile);
-    return response.json({ received: true });
-  } catch (error) {
-    console.error(`Paystack webhook verification failed: ${error.message}`);
-    return response.status(500).json({ error: 'Payment verification temporarily failed.' });
-  }
-});
+  const data = await verifyPaystackTransaction(reference);
+  await store.transact((current) => applyPaystackTransaction(current, entry.id, data));
+  return response.json({ received: true });
+}));
 
-app.post('/api/demo/complete-payment', (request, response) => {
+app.post('/api/demo/complete-payment', asyncRoute(async (request, response) => {
   if (paymentMode !== 'demo') {
     return response.status(403).json({ error: 'Simulated payment confirmation is disabled in live mode.' });
   }
-  try {
+  const result = await store.transact((state) => {
     const entry = markEntryPaid(state, request.body?.entryId, {
       mpesaReceipt: `SIM${Date.now().toString().slice(-8)}`,
     });
-    saveCampaign(state, dataFile);
-    return response.json({ entry: playerEntry(entry), campaign: campaignResponse() });
-  } catch (error) {
-    return sendError(response, error);
-  }
-});
+    return { entry: playerEntry(entry), campaign: campaignResponse(state) };
+  });
+  response.json(result);
+}));
 
-app.get('/api/entries/:entryId', async (request, response) => {
-  const entry = findEntry(request.params.entryId);
+app.get('/api/entries/:entryId', asyncRoute(async (request, response) => {
+  let state = await store.read();
+  let entry = findEntry(state, request.params.entryId);
   if (!entry) return response.status(404).json({ error: 'Entry not found.' });
 
   if (paymentMode === 'live' && entry.paymentStatus === 'pending' && entry.paystackReference) {
@@ -260,33 +278,38 @@ app.get('/api/entries/:entryId', async (request, response) => {
     if (Date.now() - lastCheck >= 10_000) {
       paystackVerificationTimes.set(entry.id, Date.now());
       try {
-        await reconcilePaystackEntry(entry);
-        saveCampaign(state, dataFile);
+        const data = await verifyPaystackTransaction(entry.paystackReference);
+        entry = await store.transact((current) => applyPaystackTransaction(current, entry.id, data));
       } catch (error) {
         console.error(`Paystack status check failed: ${error.message}`);
+        state = await store.read();
+        entry = findEntry(state, request.params.entryId);
       }
     }
   }
   return response.json({ entry: playerEntry(entry) });
-});
+}));
 
-app.post('/api/entries/:entryId/spin', (request, response) => {
-  try {
+app.post('/api/entries/:entryId/spin', asyncRoute(async (request, response) => {
+  const result = await store.transact((state) => {
     const entry = revealEntry(state, request.params.entryId);
-    const bonusEntry = entry.freeSpinEntryId ? findEntry(entry.freeSpinEntryId) : null;
-    saveCampaign(state, dataFile);
-    return response.json({
+    const bonusEntry = entry.freeSpinEntryId ? findEntry(state, entry.freeSpinEntryId) : null;
+    return {
       entry: playerEntry(entry),
       bonusEntry: bonusEntry ? playerEntry(bonusEntry) : null,
-      campaign: campaignResponse(),
-    });
-  } catch (error) {
-    return sendError(response, error);
-  }
-});
+      campaign: campaignResponse(state),
+    };
+  });
+  response.json(result);
+}));
 
 app.use('/api', (request, response) => {
   response.status(404).json({ error: 'API route not found.' });
+});
+
+app.use((error, request, response, next) => {
+  if (response.headersSent) return next(error);
+  return sendError(response, error);
 });
 
 if (isVercel) {
@@ -313,11 +336,15 @@ if (isDirectRun) {
   const port = Number(process.env.PORT || 3000);
   const server = app.listen(port, '0.0.0.0', () => {
     console.log(`Detty Dezemba is running on port ${port} in ${isProduction ? 'production' : 'development'} mode.`);
-    console.log(`Payments: ${paymentMode} via Paystack${paymentMode === 'live' && !paystackConfigured({ live: true }) ? ' (live Paystack configuration incomplete)' : ''}.`);
+    console.log(`Payments: ${paymentMode} via Paystack; storage: ${store.kind}.`);
+    if (paymentMode === 'live' && !paystackConfigured({ live: true })) console.warn('Live Paystack configuration is incomplete.');
   });
 
   function shutdown() {
-    server.close(() => process.exit(0));
+    server.close(async () => {
+      await store.close();
+      process.exit(0);
+    });
   }
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
