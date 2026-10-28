@@ -104,7 +104,7 @@ export default function App() {
     api(`/api/entries/${savedId}`).then(async ({ entry }) => {
       let restorable = entry;
       let chainLength = 0;
-      while (restorable.spinStatus === 'completed' && restorable.freeSpinEntryId && chainLength < 25) {
+      while (restorable.spinStatus === 'completed' && restorable.freeSpinEntryId && chainLength < 50) {
         const response = await api(`/api/entries/${restorable.freeSpinEntryId}`);
         restorable = response.entry;
         chainLength += 1;
@@ -168,6 +168,7 @@ export default function App() {
   if (!campaign) return <LoadingScreen error={loadError} onRetry={loadCampaign} />;
 
   const progress = Math.min(100, (campaign.entriesUsed / campaign.totalEntries) * 100);
+  const noWinPercentage = ((campaign.totalEntries - campaign.totalRewards) / campaign.totalEntries) * 100;
 
   return (
     <div className="spin-app">
@@ -214,7 +215,7 @@ export default function App() {
               <><WalletCards size={16} /> KES 500 per paid entry · Ticket {campaign.ticketOdds} · Any reward {campaign.startingOdds}</>
             )}
           </div>
-          <p className="wheel-disclaimer">Six illustrated slots · The committed 25-position pool decides each outcome.</p>
+          <p className="wheel-disclaimer">Six illustrated slots · Starting No Win {noWinPercentage}% · The committed {campaign.totalEntries}-position pool decides each outcome.</p>
 
           <div className="pool-progress">
             <div><span>Entry pool</span><strong>{campaign.entriesUsed} <i>/ {campaign.totalEntries}</i></strong></div>

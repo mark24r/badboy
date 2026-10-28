@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { LoaderCircle, LockKeyhole, Sparkles } from 'lucide-react';
 
 // Keep the original wheel slots and add one Free Spin slot. The committed
-// 25-position pool, not the number of illustrated slots, decides each result.
+// 50-position pool, not the number of illustrated slots, decides each result.
 export const WHEEL_SEGMENTS = [
   { outcome: 'win', label: 'TICKET' },
   { outcome: 'no-win', label: 'NO WIN' },

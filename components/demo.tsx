@@ -14,7 +14,7 @@ interface SpotlightStepsProps {
   totalFreeSpins?: number;
 }
 
-export function Default({ totalEntries = 25, totalWinners = 1, totalFreeSpins = 4 }: SpotlightStepsProps) {
+export function Default({ totalEntries = 50, totalWinners = 1, totalFreeSpins = 4 }: SpotlightStepsProps) {
   const steps = [
     {
       number: "01",
