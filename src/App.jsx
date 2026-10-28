@@ -23,11 +23,6 @@ const eventPhotos = [
 function Logo() {
   return (
     <a className="detty-brand" href="/" aria-label="Detty Dezemba Festival ticket spin home">
-      <span className="detty-event-logos" aria-hidden="true">
-        <img src="/images/detty/kola-gold.webp" alt="" width="157" height="180" />
-        <span>×</span>
-        <img src="/images/detty/av-gold.webp" alt="" width="180" height="148" />
-      </span>
       <span className="detty-brand-copy"><strong>DETTY DEZEMBA</strong><small>FESTIVAL · TICKET SPIN</small></span>
     </a>
   );

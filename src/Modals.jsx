@@ -297,11 +297,6 @@ export function ResultModal({ entry, campaign, bonusEntry, onFreeSpin, onClose, 
       {won ? (
         <div className="festival-win-ticket" aria-label={`Winning festival ticket ${entry.receipt}`}>
           <div className="festival-win-ticket-top">
-            <span className="festival-win-logos" aria-hidden="true">
-              <img src="/images/detty/kola-gold.webp" alt="" />
-              <i>×</i>
-              <img src="/images/detty/av-gold.webp" alt="" />
-            </span>
             <span>WINNING TICKET</span>
           </div>
           <div className="festival-win-ticket-body">

@@ -178,26 +178,6 @@ h3,
   color: var(--detty-cream);
 }
 
-.detty-event-logos {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 9px;
-}
-
-.detty-event-logos img {
-  display: block;
-  width: auto;
-  height: 44px;
-  object-fit: contain;
-}
-
-.detty-event-logos > span {
-  color: var(--detty-muted);
-  font-size: 12px;
-  line-height: 1;
-}
-
 .detty-brand-copy {
   display: flex;
   flex-direction: column;
@@ -800,7 +780,7 @@ h3,
 .festival-win-ticket-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 12px;
   padding: 11px 14px;
   border-bottom: 1px dashed rgba(213, 173, 67, 0.32);
@@ -811,24 +791,6 @@ h3,
   font-size: 7px;
   font-weight: 800;
   letter-spacing: 0.14em;
-}
-
-.festival-win-logos {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.festival-win-logos img {
-  width: auto;
-  height: 22px;
-  object-fit: contain;
-}
-
-.festival-win-logos i {
-  color: var(--detty-muted);
-  font-size: 9px;
-  font-style: normal;
 }
 
 .festival-win-ticket-body {
@@ -1085,18 +1047,6 @@ h3,
     gap: 8px;
   }
 
-  .detty-event-logos {
-    gap: 7px;
-  }
-
-  .detty-event-logos img {
-    height: 36px;
-  }
-
-  .detty-event-logos > span {
-    font-size: 10px;
-  }
-
   .detty-brand-copy strong {
     font-size: 9px;
   }
@@ -1327,10 +1277,6 @@ h3,
 
   .detty-brand {
     gap: 7px;
-  }
-
-  .detty-event-logos img {
-    height: 32px;
   }
 
   .detty-brand-copy strong {
