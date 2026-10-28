@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const CAMPAIGN_ID = 'detty-dezemba-dec-2026';
-export const POOL_SCHEMA = 'tiketi.pool.v4';
-export const TOTAL_ENTRIES = 60;
+export const POOL_SCHEMA = 'tiketi.pool.v5';
+export const TOTAL_ENTRIES = 120;
 export const TOTAL_REGULAR_TICKETS = 1;
 export const TOTAL_VIP_TICKETS = 1;
 export const TOTAL_WINNERS = TOTAL_REGULAR_TICKETS + TOTAL_VIP_TICKETS;
@@ -162,7 +162,7 @@ export function createCampaign({ seedDemo = false, seedCount = 10 } = {}) {
 
   const now = Date.now();
   const state = {
-    version: 4,
+    version: 5,
     poolSchema: POOL_SCHEMA,
     campaignId: CAMPAIGN_ID,
     createdAt: new Date(now - (seedDemo ? (seedCount + 2) * 8 * 60_000 : 0)).toISOString(),

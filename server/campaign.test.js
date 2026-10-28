@@ -37,7 +37,7 @@ test('normalizes Kenyan mobile numbers and rejects invalid numbers', () => {
 
 test('creates a fixed, committed outcome pool', () => {
   const state = createCampaign();
-  assert.equal(TOTAL_ENTRIES, 60);
+  assert.equal(TOTAL_ENTRIES, 120);
   assert.equal(TOTAL_REGULAR_TICKETS, 1);
   assert.equal(TOTAL_VIP_TICKETS, 1);
   assert.equal(TOTAL_WINNERS, 2);
@@ -46,8 +46,8 @@ test('creates a fixed, committed outcome pool', () => {
   assert.equal(state.pool.filter((outcome) => outcome === 'win').length, TOTAL_REGULAR_TICKETS);
   assert.equal(state.pool.filter((outcome) => outcome === 'vip-win').length, TOTAL_VIP_TICKETS);
   assert.equal(state.pool.filter((outcome) => outcome === 'free-spin').length, TOTAL_FREE_SPINS);
-  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length, 54);
-  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length / TOTAL_ENTRIES, 0.9);
+  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length, 114);
+  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length / TOTAL_ENTRIES, 0.95);
   assert.notEqual(state.pool[state.pool.length - 1], 'free-spin');
   assert.match(state.commitment, /^[a-f0-9]{64}$/);
   assert.equal(computeCommitment(state), state.commitment);
@@ -58,7 +58,7 @@ test('creates a fixed, committed outcome pool', () => {
 
 test('reveals Regular and VIP tickets with distinct prize references', () => {
   const state = createCampaign();
-  state.pool = ['win', 'vip-win', ...Array(4).fill('free-spin'), ...Array(54).fill('no-win')];
+  state.pool = ['win', 'vip-win', ...Array(4).fill('free-spin'), ...Array(114).fill('no-win')];
   state.commitment = computeCommitment(state);
   const regular = paidEntry(state);
   const regularResult = revealEntry(state, regular.id);
@@ -109,10 +109,10 @@ test('public data masks phones and never exposes the secret pool', () => {
   assert.equal(publicData.ledger[0].phone, '+254 7•• ••• 678');
   assert.equal('pool' in publicData, false);
   assert.equal('poolSalt' in publicData, false);
-  assert.equal(publicData.startingOdds, '1 in 10');
-  assert.equal(publicData.ticketOdds, '1 in 30');
-  assert.equal(publicData.regularTicketOdds, '1 in 60');
-  assert.equal(publicData.vipTicketOdds, '1 in 60');
+  assert.equal(publicData.startingOdds, '1 in 20');
+  assert.equal(publicData.ticketOdds, '1 in 60');
+  assert.equal(publicData.regularTicketOdds, '1 in 120');
+  assert.equal(publicData.vipTicketOdds, '1 in 120');
   assert.equal(publicData.ledgerLength, 1);
 });
 
@@ -146,9 +146,9 @@ test('closes when all prizes are allocated and reveals only after paid spins com
 
 test('free-spin bonus entries can chain through consecutive committed positions', () => {
   const state = createCampaign();
-  state.pool = ['free-spin', 'free-spin', 'free-spin', 'free-spin', ...Array(54).fill('no-win'), 'win', 'vip-win'];
+  state.pool = ['free-spin', 'free-spin', 'free-spin', 'free-spin', ...Array(114).fill('no-win'), 'win', 'vip-win'];
   assert.equal(state.pool.length, TOTAL_ENTRIES);
-  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length, 54);
+  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length, 114);
   state.commitment = computeCommitment(state);
   const parent = paidEntry(state);
   const first = revealEntry(state, parent.id);
@@ -165,10 +165,10 @@ test('free-spin bonus entries can chain through consecutive committed positions'
 
 test('a free spin creates one idempotent KES 0 bonus entry from the same committed pool', () => {
   const state = createCampaign();
-  state.pool = ['free-spin', 'no-win', ...Array(3).fill('free-spin'), ...Array(53).fill('no-win'), 'win', 'vip-win'];
+  state.pool = ['free-spin', 'no-win', ...Array(3).fill('free-spin'), ...Array(113).fill('no-win'), 'win', 'vip-win'];
   assert.equal(state.pool.length, TOTAL_ENTRIES);
   assert.equal(state.pool.filter((outcome) => outcome === 'free-spin').length, TOTAL_FREE_SPINS);
-  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length, 54);
+  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length, 114);
   state.commitment = computeCommitment(state);
   const parent = paidEntry(state);
   const result = revealEntry(state, parent.id);

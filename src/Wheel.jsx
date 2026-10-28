@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { LoaderCircle, LockKeyhole, Sparkles } from 'lucide-react';
 
 // Distribute the prize and No-Win slots around the wheel. The committed
-// 60-position pool, not the number of illustrated slots, decides each result.
+// 120-position pool, not the number of illustrated slots, decides each result.
 export const WHEEL_SEGMENTS = [
   { outcome: 'win', label: 'REGULAR TICKET' },
   { outcome: 'no-win', label: 'NO WIN' },

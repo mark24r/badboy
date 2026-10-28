@@ -367,7 +367,7 @@ export function FairnessModal({ campaign, onClose, onToast }) {
       totalVipTickets: campaign.totalVipTickets,
       totalFreeSpins: campaign.totalFreeSpins,
       totalRewards: campaign.totalRewards,
-      algorithm: 'SHA-256 of JSON.stringify(tiketi.pool.v4 payload)',
+      algorithm: 'SHA-256 of JSON.stringify(tiketi.pool.v5 payload)',
       poolRevealed: campaign.poolRevealed,
     });
     onToast('Commitment record downloaded.');
@@ -411,7 +411,7 @@ const legalContent = {
     title: 'Plain-language terms.',
     sections: [
       ['Entry', 'This demonstration charges no money. For an approved live drop, each confirmed KES 500 M-Pesa payment receives one paid entry and one outcome reveal. Entrants must be 18 or older, with a maximum of three paid entries per phone number. Free Spins create KES 0 bonus entries and do not use another paid-entry slot.'],
-      ['Prizes and results', 'There is exactly one Regular Detty Dezemba Festival ticket, one VIP ticket and four Free Spins in a fixed pool of 60 positions, alongside 54 No-Win positions. Starting odds are 1 in 60 for each ticket type, 1 in 30 for any ticket, and 1 in 10 for any reward. A winning receipt shows the prize reference. Winners must be reachable on their payment number and complete reasonable identity and eligibility checks before fulfilment.'],
+      ['Prizes and results', 'There is exactly one Regular Detty Dezemba Festival ticket, one VIP ticket and four Free Spins in a fixed pool of 120 positions, alongside 114 No-Win positions. Starting odds are 1 in 120 for each ticket type, 1 in 60 for any ticket, and 1 in 20 for any reward. A winning receipt shows the prize reference. Winners must be reachable on their payment number and complete reasonable identity and eligibility checks before fulfilment.'],
       ['Refunds and cancellation', 'A revealed, valid entry is not refundable simply because it did not win. If the operator cancels the drop, affected paid entrants should receive a refund to the original payment number. Final launch terms must be reviewed by qualified Kenyan counsel.'],
     ],
   },

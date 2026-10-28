@@ -104,7 +104,7 @@ export default function App() {
     api(`/api/entries/${savedId}`).then(async ({ entry }) => {
       let restorable = entry;
       let chainLength = 0;
-      while (restorable.spinStatus === 'completed' && restorable.freeSpinEntryId && chainLength < 60) {
+      while (restorable.spinStatus === 'completed' && restorable.freeSpinEntryId && chainLength < 120) {
         const response = await api(`/api/entries/${restorable.freeSpinEntryId}`);
         restorable = response.entry;
         chainLength += 1;
