@@ -114,6 +114,8 @@ The webhook follows Paystack's [signed-webhook guidance](https://paystack.com/do
 
 `GET /api/cron/reconcile` provides an additional automatic fallback for pending or ambiguous payments. It requires `CRON_SECRET`, independently verifies each Paystack reference, applies updates inside the same transactional store, retries temporary verification failures, and leaves successful mismatches in manual review. Repetitions are idempotent and cannot allocate a second entry. `vercel.json` schedules it daily at 01:00 UTC (04:00 in Nairobi); Vercel Hobby permits only daily cron jobs and may run them up to an hour later. On Vercel Pro, the schedule can be increased to every five minutes. Webhooks and customer status checks remain the faster confirmation paths.
 
+For an isolated live-payment pilot, `CAMPAIGN_STORAGE_KEY` can select a unique Postgres test row while `LIVE_ENTRY_ACCESS_CODE` makes live checkout invite-only. The frontend accepts the code in an `#entry-access=...` URL fragment, stores it only in the browser session, and removes it from the visible URL. Requests without the correct code are rejected before Paystack or campaign storage is touched. Remove both settings after the pilot; the test payment record remains separate from the real campaign.
+
 Demo mode is the default and never calls Paystack. Live activation requires both persistent Postgres storage and a live server key; Vercel live mode still refuses to start if Postgres is missing. The local JSON mode is suitable only for a conventional single-process Node host, not a multi-instance live deployment. The website never asks for an M-Pesa PIN; customers enter it only in the phone's official prompt.
 
 ## Important before a real launch
@@ -140,6 +142,7 @@ This is a functional reference implementation, not a claim of legal or productio
 - `server/reconciliation.js` — authenticated payment reconciliation, retry tracking, and manual-review safeguards
 - `server/webhook-forwarder.js` — signed raw-body forwarding for a shared Paystack business
 - `server/campaign.test.js` — core fairness and integrity tests
+- `server/live-access.test.js` — invite-only live checkout network and storage safeguards
 - `server/paystack.test.js` — mocked Paystack request, validation, and signature tests
 - `server/reconciliation.test.js` — reconciliation recovery, batching, authorization, and idempotency tests
 - `server/webhook-forwarder.test.js` — exact payload/signature forwarding and failure handling tests

@@ -16,6 +16,7 @@ import {
 } from './campaign.js';
 import {
   initiatePaystackMpesa,
+  isValidEntryAccessCode,
   isValidPaystackSignature,
   paystackConfigured,
   paystackReferenceForEntry,
@@ -44,7 +45,12 @@ if (isVercel && paymentMode === 'live' && !postgresConfigured()) {
   throw new Error('Live payments require persistent Postgres storage on Vercel.');
 }
 
-const store = await createCampaignStore({ dataFile, paymentMode, isVercel });
+const store = await createCampaignStore({
+  dataFile,
+  paymentMode,
+  isVercel,
+  storageKey: process.env.CAMPAIGN_STORAGE_KEY || undefined,
+});
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({
@@ -84,6 +90,7 @@ function campaignResponse(state) {
     paymentProvider: 'paystack',
     persistentStorage: store.persistent,
     livePaymentsConfigured: paymentMode === 'live' && store.persistent && paystackConfigured({ live: true }),
+    entryAccessRequired: paymentMode === 'live' && Boolean(process.env.LIVE_ENTRY_ACCESS_CODE),
   };
 }
 
@@ -108,6 +115,8 @@ app.get('/api/health', (request, response) => {
     persistentStorage: store.persistent,
     paystackLiveKeyConfigured: paystackConfigured({ live: true }),
     webhookForwardingConfigured: Boolean(process.env.PAYSTACK_WEBHOOK_FORWARD_URL),
+    isolatedCampaign: Boolean(process.env.CAMPAIGN_STORAGE_KEY),
+    entryAccessRequired: paymentMode === 'live' && Boolean(process.env.LIVE_ENTRY_ACCESS_CODE),
   });
 });
 
@@ -186,6 +195,9 @@ app.post('/api/payments/initiate', paymentRateLimit, asyncRoute(async (request, 
   try {
     if (request.body?.acceptedTerms !== true) {
       throw new Error('Confirm that you are 18+ and accept the drop terms before entering.');
+    }
+    if (paymentMode === 'live' && !isValidEntryAccessCode(request.body?.accessCode)) {
+      return response.status(403).json({ error: 'Live checkout is currently limited to invited testers. Use your private test link.' });
     }
     const phone = normalizePhone(request.body?.phone);
 

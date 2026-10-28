@@ -52,7 +52,7 @@ function MpesaMark() {
   );
 }
 
-export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) {
+export function PaymentModal({ open, onClose, campaign, entryAccessCode = '', onEntry, onSpinReady }) {
   const [step, setStep] = useState('form');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -127,7 +127,12 @@ export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) 
     try {
       const response = await api('/api/payments/initiate', {
         method: 'POST',
-        body: JSON.stringify({ phone, email: campaign.paymentMode === 'live' ? email : undefined, acceptedTerms: accepted }),
+        body: JSON.stringify({
+          phone,
+          email: campaign.paymentMode === 'live' ? email : undefined,
+          accessCode: campaign.paymentMode === 'live' ? entryAccessCode : undefined,
+          acceptedTerms: accepted,
+        }),
       });
       setEntry(response.entry);
       onEntry(response.entry);
@@ -212,9 +217,16 @@ export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) 
             <span>I confirm I’m 18+ and agree to the drop terms, including the limit of {campaign.maxEntriesPerPhone} paid entries per number.</span>
           </label>
 
+          {campaign.entryAccessRequired && !entryAccessCode && (
+            <div className="form-error" role="alert">Live checkout is currently limited to invited testers. Open your private test link in this tab.</div>
+          )}
           {error && <div className="form-error" role="alert">{error}</div>}
 
-          <button className="button button-primary button-full payment-button" type="submit" disabled={!accepted || submitting || campaign.status === 'closed'}>
+          <button
+            className="button button-primary button-full payment-button"
+            type="submit"
+            disabled={!accepted || submitting || campaign.status === 'closed' || (campaign.entryAccessRequired && !entryAccessCode)}
+          >
             {submitting ? <LoaderCircle size={19} className="spin-icon" /> : <LockKeyhole size={18} />}
             {submitting ? 'Starting secure payment…' : 'Pay KES 500 with Paystack'}
             {!submitting && <ArrowRight size={18} />}

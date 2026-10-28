@@ -20,6 +20,17 @@ const eventPhotos = [
   '/images/detty/front-row-800.webp',
 ];
 
+function readEntryAccessCode() {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const fromLink = params.get('entry-access');
+  if (fromLink) {
+    sessionStorage.setItem('tiketi-entry-access', fromLink);
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+    return fromLink;
+  }
+  return sessionStorage.getItem('tiketi-entry-access') || '';
+}
+
 function Logo() {
   return (
     <a className="detty-brand" href="/" aria-label="Detty Dezemba Festival ticket spin home">
@@ -47,6 +58,7 @@ function LoadingScreen({ error, onRetry }) {
 }
 
 export default function App() {
+  const [entryAccessCode] = useState(readEntryAccessCode);
   const [campaign, setCampaign] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -250,6 +262,7 @@ export default function App() {
         open={paymentOpen}
         onClose={() => setPaymentOpen(false)}
         campaign={campaign}
+        entryAccessCode={entryAccessCode}
         onEntry={handleEntry}
         onSpinReady={handleSpinReady}
       />

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {
   initiatePaystackMpesa,
+  isValidEntryAccessCode,
   isValidPaystackSignature,
   paystackConfigured,
   validatePaystackTransaction,
@@ -38,6 +39,14 @@ test('requires a live Paystack secret for live charges', () => {
   assert.equal(paystackConfigured({ live: true, secretKey: 'sk_test_example' }), false);
   assert.equal(paystackConfigured({ live: true, secretKey }), true);
   assert.equal(paystackConfigured({ live: true, secretKey: '' }), false);
+});
+
+test('invite-only live checkout accepts the exact access code and fails closed when configured', () => {
+  assert.equal(isValidEntryAccessCode('anything', ''), true);
+  assert.equal(isValidEntryAccessCode('correct-private-code', 'correct-private-code'), true);
+  assert.equal(isValidEntryAccessCode('wrong-private-code', 'correct-private-code'), false);
+  assert.equal(isValidEntryAccessCode('', 'correct-private-code'), false);
+  assert.equal(isValidEntryAccessCode(undefined, 'correct-private-code'), false);
 });
 
 test('creates a Paystack M-Pesa charge with the exact KES subunit amount and entry metadata', async () => {
