@@ -105,6 +105,8 @@ app.get('/api/health', (request, response) => {
     provider: 'paystack',
     storage: store.kind,
     persistentStorage: store.persistent,
+    paystackLiveKeyConfigured: paystackConfigured({ live: true }),
+    webhookForwardingConfigured: Boolean(process.env.PAYSTACK_WEBHOOK_FORWARD_URL),
   });
 });
 

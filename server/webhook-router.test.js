@@ -65,6 +65,9 @@ test('shared router preserves the existing receiver path without changing the de
 
   try {
     const before = await localRequest(server, { route: '/api/campaign/ledger' });
+    const health = await localRequest(server, { route: '/api/health' });
+    assert.equal(health.body.webhookForwardingConfigured, true);
+    assert.equal(health.body.paystackLiveKeyConfigured, false);
     const rawBody = '{"event":"charge.success","data":{"reference":"DD-other-project"}}';
     const signature = signedBody(rawBody);
     const forwardedResponse = await localRequest(server, {
