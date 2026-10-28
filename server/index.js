@@ -27,6 +27,7 @@ import {
   reconcilePayments,
 } from './reconciliation.js';
 import { createCampaignStore, postgresConfigured } from './store.js';
+import { forwardPaystackWebhook } from './webhook-forwarder.js';
 
 const moduleFile = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(moduleFile);
@@ -210,6 +211,21 @@ app.post('/api/payments/initiate', paymentRateLimit, asyncRoute(async (request, 
   }
 }));
 
+async function processDettyPaystackEvent(event) {
+  if (event?.event !== 'charge.success') return;
+  const reference = event.data?.reference;
+  const state = await store.read();
+  const entry = state.entries.find((item) => item.paystackReference === reference);
+  if (!entry) {
+    console.warn('Received a signed Paystack webhook for an unknown payment reference.');
+    return;
+  }
+  if (entry.paymentStatus === 'paid') return;
+
+  const data = await verifyPaystackTransaction(reference);
+  await store.transact((current) => applyPaystackTransaction(current, entry.id, data));
+}
+
 app.post('/api/payments/paystack/webhook', asyncRoute(async (request, response) => {
   if (paymentMode !== 'live') {
     return response.status(403).json({ error: 'Paystack webhooks are disabled in demo mode.' });
@@ -218,20 +234,39 @@ app.post('/api/payments/paystack/webhook', asyncRoute(async (request, response) 
     return response.status(401).json({ error: 'Invalid Paystack signature.' });
   }
 
-  const event = request.body;
-  if (event?.event !== 'charge.success') return response.json({ received: true });
-  const reference = event.data?.reference;
-  const state = await store.read();
-  const entry = state.entries.find((item) => item.paystackReference === reference);
-  if (!entry) {
-    console.warn('Received a signed Paystack webhook for an unknown payment reference.');
-    return response.json({ received: true });
-  }
-  if (entry.paymentStatus === 'paid') return response.json({ received: true });
-
-  const data = await verifyPaystackTransaction(reference);
-  await store.transact((current) => applyPaystackTransaction(current, entry.id, data));
+  await processDettyPaystackEvent(request.body);
   return response.json({ received: true });
+}));
+
+app.post('/api/payments/paystack/router', asyncRoute(async (request, response) => {
+  const signature = request.get('x-paystack-signature');
+  if (!isValidPaystackSignature(request.rawBody, signature)) {
+    return response.status(401).json({ error: 'Invalid Paystack signature.' });
+  }
+
+  const forwardUrl = process.env.PAYSTACK_WEBHOOK_FORWARD_URL || null;
+  if (paymentMode !== 'live' && !forwardUrl) {
+    return response.status(403).json({ error: 'Shared Paystack routing is not configured.' });
+  }
+
+  let forwardingError = null;
+  if (forwardUrl) {
+    try {
+      await forwardPaystackWebhook({ url: forwardUrl, rawBody: request.rawBody, signature });
+    } catch (error) {
+      forwardingError = error;
+      console.error(`Existing Paystack webhook forwarding failed: ${error.message}`);
+    }
+  }
+
+  if (paymentMode === 'live') await processDettyPaystackEvent(request.body);
+
+  if (forwardingError) {
+    return response.status(forwardingError.status || 502).json({
+      error: 'The existing webhook receiver could not be confirmed. Paystack will retry.',
+    });
+  }
+  return response.json({ received: true, forwarded: Boolean(forwardUrl) });
 }));
 
 app.post('/api/demo/complete-payment', asyncRoute(async (request, response) => {

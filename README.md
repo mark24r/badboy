@@ -102,6 +102,14 @@ Live mode deliberately requires an `sk_live_` secret; a test key cannot unlock a
 POST /api/payments/paystack/webhook
 ```
 
+If another active project already uses this Paystack business's webhook, do not replace it with the dedicated endpoint. Instead, store the existing receiver's HTTPS URL in the server-only `PAYSTACK_WEBHOOK_FORWARD_URL` variable and point the Paystack dashboard to:
+
+```text
+POST /api/payments/paystack/router
+```
+
+The shared router verifies the Paystack signature, forwards the unchanged raw body and signature to the existing receiver, and processes Detty entries only in live mode. In demo mode it can forward the other project's events without changing Detty's campaign. A forwarding failure returns a retryable error; successful Detty processing remains idempotent across retries. Keep the former URL available so the dashboard change can be rolled back if the existing project does not acknowledge forwarded events.
+
 The webhook follows Paystack's [signed-webhook guidance](https://paystack.com/docs/payments/webhooks/): the raw request body is checked with HMAC-SHA512 before processing. Both webhook confirmation and throttled status checks independently call Paystack's transaction verification API. A spin unlocks only after the server confirms a live, successful mobile-money transaction with the exact entry reference, metadata, KES currency, and **50,000-subunit** amount. Mismatches go to manual review rather than receiving an entry.
 
 `GET /api/cron/reconcile` provides an additional automatic fallback for pending or ambiguous payments. It requires `CRON_SECRET`, independently verifies each Paystack reference, applies updates inside the same transactional store, retries temporary verification failures, and leaves successful mismatches in manual review. Repetitions are idempotent and cannot allocate a second entry. `vercel.json` schedules it daily at 01:00 UTC (04:00 in Nairobi); Vercel Hobby permits only daily cron jobs and may run them up to an hour later. On Vercel Pro, the schedule can be increased to every five minutes. Webhooks and customer status checks remain the faster confirmation paths.
@@ -130,7 +138,10 @@ This is a functional reference implementation, not a claim of legal or productio
 - `server/index.js` — API, Paystack webhook handling, and app server
 - `server/store.js` — Postgres persistence with row-level locking, plus the local JSON fallback
 - `server/reconciliation.js` — authenticated payment reconciliation, retry tracking, and manual-review safeguards
+- `server/webhook-forwarder.js` — signed raw-body forwarding for a shared Paystack business
 - `server/campaign.test.js` — core fairness and integrity tests
 - `server/paystack.test.js` — mocked Paystack request, validation, and signature tests
 - `server/reconciliation.test.js` — reconciliation recovery, batching, authorization, and idempotency tests
+- `server/webhook-forwarder.test.js` — exact payload/signature forwarding and failure handling tests
+- `server/webhook-router.test.js` — end-to-end shared-router demo isolation and retry tests
 - `server/store.test.js` — storage rollback, persistence, and allocation tests
