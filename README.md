@@ -22,6 +22,7 @@ npm start         # serve the API and built frontend on PORT (default 3000)
 
 - M-Pesa phone checkout with Kenyan number validation
 - Server-confirmed payment state; the browser cannot mark an entry paid
+- Original-style six-slot wheel with one Ticket, four No Win, and one added Free Spin slot
 - Ready-to-spin hub pulse, segment-synchronised pointer ticks, dramatic slowdown, and reduced-motion support
 - Gold win flash, confetti, and a branded festival-ticket card with the winning receipt
 - Exactly one Regular ticket, four Free Spins, current unallocated pool, and starting odds
@@ -69,7 +70,7 @@ The spotlight component itself needs no image assets, context providers, or addi
 7. Each completed result, including a bonus result, contains the previous result hash. Any edited historical result breaks the subsequent chain.
 8. Once the drop closes and all allocated entries have revealed, the original pool and salt become available at `/api/campaign/reveal` for independent commitment verification. Incompatible saved pools use an explicit schema check; simulated data is archived before a fresh pool is created, while live-mode data is never automatically reset.
 
-The wheel's coloured areas match the **starting pool proportions**: **4% Regular Ticket (1/25)**, **16% Free Spin (4/25)**, and **80% No Win (20/25)**. The 25 rim ticks represent pool positions. The wheel only animates the server-issued outcome; remaining odds change as positions in the fixed pool are allocated.
+The wheel preserves the original multi-slot presentation with **six illustrated slots**: one Ticket, four No Win, and one added Free Spin. Slot size is illustrative rather than a probability map; the committed 25-position pool determines the server-issued outcome. Starting odds remain **1 in 25 for the Regular ticket** and **1 in 5 for any reward**, and remaining odds change as pool positions are allocated.
 
 ## Deploy to Vercel (hosted demo)
 

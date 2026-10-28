@@ -388,7 +388,7 @@ export function FairnessModal({ campaign, onClose, onToast }) {
         <li><b>03</b><div><strong>Results form a hash chain</strong><p>Each issued receipt includes the previous result’s hash. Changing an old result breaks the chain that follows it.</p></div></li>
         <li><b>04</b><div><strong>Pool revealed after close</strong><p>Anyone can then hash the revealed pool and compare it with the commitment published before play.</p></div></li>
       </ol>
-      <p className="modal-intro">The wheel’s coloured areas match the original pool: 4% Regular Ticket, 16% Free Spin and 80% No Win. Remaining odds change as committed positions are allocated.</p>
+      <p className="modal-intro">The wheel keeps six illustrated slots, including one Free Spin slot. Slot size does not calculate the odds; the committed pool decides outcomes, and remaining odds change as positions are allocated.</p>
       <div className="modal-hash-box">
         <span>POOL COMMITMENT · SHA-256</span>
         <code>{campaign.commitment}</code>

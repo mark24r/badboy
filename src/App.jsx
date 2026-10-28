@@ -214,7 +214,7 @@ export default function App() {
               <><WalletCards size={16} /> KES 500 per paid entry · Ticket {campaign.ticketOdds} · Any reward {campaign.startingOdds}</>
             )}
           </div>
-          <p className="wheel-disclaimer">Wheel areas match the starting pool: 4% Regular Ticket · 16% Free Spin · 80% No Win. The committed pool decides each outcome.</p>
+          <p className="wheel-disclaimer">Six illustrated slots · The committed 25-position pool decides each outcome.</p>
 
           <div className="pool-progress">
             <div><span>Entry pool</span><strong>{campaign.entriesUsed} <i>/ {campaign.totalEntries}</i></strong></div>

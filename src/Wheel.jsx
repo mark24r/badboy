@@ -1,20 +1,27 @@
 import { useEffect, useRef } from 'react';
 import { LoaderCircle, LockKeyhole, Sparkles } from 'lucide-react';
 
-export const POOL_POSITION_COUNT = 25;
-export const POINTER_TICK_ANGLE = 360 / POOL_POSITION_COUNT;
-
-// The three coloured areas are the exact starting-pool proportions: 1 / 25,
-// 4 / 25 and 20 / 25. Small rim ticks divide those areas into 25 positions.
+// Keep the original wheel slots and add one Free Spin slot. The committed
+// 25-position pool, not the number of illustrated slots, decides each result.
 export const WHEEL_SEGMENTS = [
-  { outcome: 'win', label: 'REGULAR TICKET', start: 0, angle: POINTER_TICK_ANGLE, fill: '#d5ad43', text: '#0b0906' },
-  { outcome: 'free-spin', label: 'FREE SPIN', start: POINTER_TICK_ANGLE, angle: POINTER_TICK_ANGLE * 4, fill: '#f4ede0', text: '#0b0906' },
-  { outcome: 'no-win', label: 'NO WIN', start: POINTER_TICK_ANGLE * 5, angle: POINTER_TICK_ANGLE * 20, fill: '#292116', text: '#f4ede0' },
+  { outcome: 'win', label: 'TICKET' },
+  { outcome: 'no-win', label: 'NO WIN' },
+  { outcome: 'no-win', label: 'NO WIN' },
+  { outcome: 'no-win', label: 'NO WIN' },
+  { outcome: 'no-win', label: 'NO WIN' },
+  { outcome: 'free-spin', label: 'FREE SPIN' },
 ];
+const SEGMENT_ANGLE = 360 / WHEEL_SEGMENTS.length;
 
 export function targetRotationForOutcome(outcome) {
-  const segment = WHEEL_SEGMENTS.find((item) => item.outcome === outcome) || WHEEL_SEGMENTS[2];
-  return (360 - (segment.start + segment.angle / 2) + 360) % 360;
+  const candidates = WHEEL_SEGMENTS
+    .map((segment, index) => ({ segment, index }))
+    .filter(({ segment }) => segment.outcome === outcome);
+  const fallback = { index: 1 };
+  const selected = candidates.length > 1
+    ? candidates[Math.floor(Math.random() * candidates.length)]
+    : candidates[0] || fallback;
+  return (360 - (selected.index * SEGMENT_ANGLE + SEGMENT_ANGLE / 2) + 360) % 360;
 }
 
 function point(radius, angle) {
@@ -25,11 +32,10 @@ function point(radius, angle) {
   };
 }
 
-function segmentPath(segment) {
-  const start = point(145, -90 + segment.start);
-  const end = point(145, -90 + segment.start + segment.angle);
-  const largeArc = segment.angle > 180 ? 1 : 0;
-  return `M 160 160 L ${start.x} ${start.y} A 145 145 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
+function segmentPath(index) {
+  const start = point(145, -90 + index * SEGMENT_ANGLE);
+  const end = point(145, -90 + (index + 1) * SEGMENT_ANGLE);
+  return `M 160 160 L ${start.x} ${start.y} A 145 145 0 0 1 ${end.x} ${end.y} Z`;
 }
 
 function easeSpin(progress) {
@@ -64,7 +70,7 @@ export default function Wheel({ rotation, duration, spinning, canSpin, bonus, cl
     const from = currentRotation.current;
     const distance = rotation - from;
     const startedAt = performance.now();
-    let previousTick = Math.floor(from / POINTER_TICK_ANGLE);
+    let previousSegment = Math.floor(from / SEGMENT_ANGLE);
     let pointerKick = 0;
 
     const animate = (now) => {
@@ -74,10 +80,10 @@ export default function Wheel({ rotation, duration, spinning, canSpin, bonus, cl
       rotor.style.transform = `rotate(${nextRotation}deg)`;
 
       if (pointer && !reducedMotion) {
-        const tick = Math.floor(nextRotation / POINTER_TICK_ANGLE);
-        if (tick !== previousTick) {
-          pointerKick = -Math.min(20, 10 + Math.abs(tick - previousTick) * 2);
-          previousTick = tick;
+        const segment = Math.floor(nextRotation / SEGMENT_ANGLE);
+        if (segment !== previousSegment) {
+          pointerKick = -Math.min(20, 10 + Math.abs(segment - previousSegment) * 2);
+          previousSegment = segment;
         }
         pointerKick *= 0.68;
         if (Math.abs(pointerKick) < 0.15) pointerKick = 0;
@@ -109,24 +115,25 @@ export default function Wheel({ rotation, duration, spinning, canSpin, bonus, cl
         <svg viewBox="0 0 320 320" className="wheel-svg">
           <circle cx="160" cy="160" r="154" fill="#0b0906" />
           <circle cx="160" cy="160" r="148" fill="#f4ede0" />
-          {WHEEL_SEGMENTS.map((segment) => {
-            const midpoint = segment.start + segment.angle / 2;
-            const label = point(segment.outcome === 'win' ? 102 : 101, -90 + midpoint);
-            let labelRotation = midpoint + 90;
-            if (labelRotation > 90 && labelRotation < 270) labelRotation += 180;
+          {WHEEL_SEGMENTS.map((segment, index) => {
+            const midpoint = -90 + index * SEGMENT_ANGLE + SEGMENT_ANGLE / 2;
+            const label = point(101, midpoint);
+            const isWinner = segment.outcome === 'win';
+            const isFreeSpin = segment.outcome === 'free-spin';
+            const fill = isWinner ? '#d5ad43' : isFreeSpin ? '#e4bd54' : index % 2 === 0 ? '#f4ede0' : '#292116';
             return (
-              <g key={segment.outcome} data-outcome={segment.outcome}>
-                <path d={segmentPath(segment)} fill={segment.fill} stroke="#0b0906" strokeWidth="1.2" />
+              <g key={index} data-outcome={segment.outcome}>
+                <path d={segmentPath(index)} fill={fill} stroke="#0b0906" strokeWidth="1.2" />
                 <text
                   x={label.x}
                   y={label.y}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  transform={`rotate(${labelRotation} ${label.x} ${label.y})`}
-                  fill={segment.text}
-                  fontSize={segment.outcome === 'win' ? '7.5' : segment.outcome === 'free-spin' ? '11' : '13'}
+                  transform={`rotate(${midpoint + 90} ${label.x} ${label.y})`}
+                  fill={isWinner || isFreeSpin || index % 2 === 0 ? '#0b0906' : '#f4ede0'}
+                  fontSize={isWinner ? '13' : isFreeSpin ? '10' : '9'}
                   fontWeight="900"
-                  letterSpacing={segment.outcome === 'win' ? '0.6' : '1.2'}
+                  letterSpacing={isWinner ? '1.5' : isFreeSpin ? '0.8' : '1'}
                   fontFamily="Inter, sans-serif"
                 >
                   {segment.label}
@@ -136,9 +143,9 @@ export default function Wheel({ rotation, duration, spinning, canSpin, bonus, cl
           })}
           <circle cx="160" cy="160" r="145" fill="none" stroke="#0b0906" strokeWidth="3" />
           <circle cx="160" cy="160" r="62" fill="#0b0906" stroke="#f4ede0" strokeWidth="3" />
-          {Array.from({ length: POOL_POSITION_COUNT }, (_, index) => {
-            const dot = point(151, -90 + index * POINTER_TICK_ANGLE);
-            return <circle key={index} cx={dot.x} cy={dot.y} r="1.9" fill={index < 5 ? '#d5ad43' : '#f4ede0'} />;
+          {WHEEL_SEGMENTS.map((segment, index) => {
+            const dot = point(151, -90 + index * SEGMENT_ANGLE);
+            return <circle key={index} cx={dot.x} cy={dot.y} r="2.4" fill={segment.outcome === 'win' || segment.outcome === 'free-spin' ? '#d5ad43' : '#f4ede0'} />;
           })}
         </svg>
       </div>
