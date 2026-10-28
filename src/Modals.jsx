@@ -1,0 +1,464 @@
+import { useEffect, useState } from 'react';
+import {
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  Clipboard,
+  Download,
+  FileCheck2,
+  Hash,
+  LoaderCircle,
+  LockKeyhole,
+  Phone,
+  ShieldCheck,
+  Ticket,
+  Trophy,
+  X,
+} from 'lucide-react';
+import { api, copyText, downloadJson, shortHash, verifyReceipt, wait } from './lib.js';
+
+function Modal({ children, onClose, label, className = '' }) {
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+
+  return (
+    <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className={`modal-card ${className}`} role="dialog" aria-modal="true" aria-label={label}>
+        <button className="modal-close icon-button" type="button" onClick={onClose} aria-label="Close dialog">
+          <X size={20} />
+        </button>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+function MpesaMark() {
+  return (
+    <span className="mpesa-mark" aria-label="M-Pesa">
+      <span className="mpesa-dot" />
+      M-PESA
+    </span>
+  );
+}
+
+export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) {
+  const [step, setStep] = useState('form');
+  const [phone, setPhone] = useState('');
+  const [accepted, setAccepted] = useState(false);
+  const [entry, setEntry] = useState(null);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open && (!entry || entry.paymentStatus === 'failed' || entry.paymentStatus === 'review')) {
+      setStep('form');
+      setError('');
+    }
+  }, [open, entry]);
+
+  useEffect(() => {
+    if (step !== 'waiting' || !entry?.id) return undefined;
+    let cancelled = false;
+
+    const finish = (paidEntry) => {
+      if (cancelled) return;
+      setEntry(paidEntry);
+      onEntry(paidEntry);
+      setStep('ready');
+    };
+
+    const monitorPayment = async () => {
+      try {
+        if (campaign.paymentMode === 'demo') {
+          await wait(1400);
+          const response = await api('/api/demo/complete-payment', {
+            method: 'POST',
+            body: JSON.stringify({ entryId: entry.id }),
+          });
+          finish(response.entry);
+          return;
+        }
+
+        const startedAt = Date.now();
+        while (!cancelled && Date.now() - startedAt < 120_000) {
+          const response = await api(`/api/entries/${entry.id}`);
+          if (response.entry.paymentStatus === 'paid') {
+            finish(response.entry);
+            return;
+          }
+          if (['failed', 'review'].includes(response.entry.paymentStatus)) {
+            throw new Error(response.entry.failureReason || 'Payment was not completed.');
+          }
+          await wait(1600);
+        }
+        if (!cancelled) throw new Error('Still waiting for M-Pesa. If you completed payment, keep this page open and check again shortly.');
+      } catch (paymentError) {
+        if (!cancelled) {
+          setError(paymentError.message);
+          setStep('form');
+        }
+      }
+    };
+
+    monitorPayment();
+    return () => {
+      cancelled = true;
+    };
+  }, [step, entry?.id, campaign.paymentMode, onEntry]);
+
+  if (!open) return null;
+
+  const submitPayment = async (event) => {
+    event.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      const response = await api('/api/payments/initiate', {
+        method: 'POST',
+        body: JSON.stringify({ phone, acceptedTerms: accepted }),
+      });
+      setEntry(response.entry);
+      onEntry(response.entry);
+      setStep('waiting');
+    } catch (submitError) {
+      setError(submitError.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} label="Pay and enter the ticket drop" className="payment-modal">
+      <div className="modal-kicker">
+        <MpesaMark />
+        <span>ENTRY CHECKOUT</span>
+      </div>
+      <div className="checkout-steps" aria-label="Checkout progress">
+        <span className="active"><b>1</b> Pay</span>
+        <i />
+        <span className={step === 'ready' ? 'active' : ''}><b>2</b> Spin</span>
+        <i />
+        <span><b>3</b> Result</span>
+      </div>
+
+      {step === 'form' && (
+        <form onSubmit={submitPayment}>
+          <h2>One payment. One spin.</h2>
+          <p className="modal-intro">Enter your M-Pesa number. We’ll send a payment prompt directly to your phone.</p>
+
+          <div className="order-summary">
+            <div className="order-icon"><Ticket size={22} /></div>
+            <div>
+              <strong>Detty Dezemba ticket drop</strong>
+              <span>1 entry · 1 spin · instant result</span>
+            </div>
+            <b>KES 500</b>
+          </div>
+
+          <label className="field-label" htmlFor="mpesa-phone">M-Pesa phone number</label>
+          <div className="phone-field">
+            <span>+254</span>
+            <input
+              id="mpesa-phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="712 345 678"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              autoFocus
+              required
+              aria-describedby="phone-help"
+            />
+            <Phone size={18} />
+          </div>
+          <p className="field-help" id="phone-help">
+            {campaign.paymentMode === 'demo' ? 'Demo tip: use 712 345 678. No real payment is made.' : 'Use the Safaricom number you want to pay with.'}
+          </p>
+
+          <label className="terms-check">
+            <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} required />
+            <span>I confirm I’m 18+ and agree to the drop terms, including the {campaign.maxEntriesPerPhone}-entry limit.</span>
+          </label>
+
+          {error && <div className="form-error" role="alert">{error}</div>}
+
+          <button className="button button-primary button-full payment-button" type="submit" disabled={!accepted || submitting || campaign.status === 'closed'}>
+            {submitting ? <LoaderCircle size={19} className="spin-icon" /> : <LockKeyhole size={18} />}
+            {submitting ? 'Starting secure payment…' : 'Pay KES 500 with M-Pesa'}
+            {!submitting && <ArrowRight size={18} />}
+          </button>
+          <div className="pin-warning"><ShieldCheck size={15} /> Your M-Pesa PIN is only entered on your phone. Never type it here.</div>
+        </form>
+      )}
+
+      {step === 'waiting' && (
+        <div className="payment-waiting">
+          <div className="phone-pulse">
+            <Phone size={30} />
+            <span />
+          </div>
+          <span className="eyebrow">{campaign.paymentMode === 'demo' ? 'SIMULATING STK PUSH' : 'STK PUSH SENT'}</span>
+          <h2>Check your phone</h2>
+          <p>{campaign.paymentMode === 'demo'
+            ? 'We’re simulating a successful M-Pesa approval. You will not be charged.'
+            : `Approve the KES 500 prompt on ${entry.phone}. This usually takes a few seconds.`}</p>
+          <div className="waiting-line"><LoaderCircle size={18} className="spin-icon" /> Waiting for payment confirmation</div>
+          <div className="pin-warning"><ShieldCheck size={15} /> This website will never ask for your M-Pesa PIN.</div>
+        </div>
+      )}
+
+      {step === 'ready' && entry && (
+        <div className="payment-ready">
+          <div className="success-seal"><Check size={34} strokeWidth={2.5} /></div>
+          <span className="eyebrow">PAYMENT CONFIRMED</span>
+          <h2>Your spin is unlocked.</h2>
+          <p>Entry <strong>#{String(entry.entryNumber).padStart(3, '0')}</strong> is in the fixed pool. Your outcome is now locked; the wheel will reveal it.</p>
+          <div className="ready-receipt">
+            <span>Receipt</span><strong>{entry.receipt}</strong>
+            <span>Paid</span><strong>KES {entry.amount}</strong>
+          </div>
+          <button className="button button-primary button-full" type="button" onClick={() => {
+            onSpinReady(entry);
+            setStep('form');
+            setEntry(null);
+            setPhone('');
+            setAccepted(false);
+          }}>
+            Spin now <ArrowRight size={18} />
+          </button>
+          <p className="microcopy">One paid entry = one reveal. Results cannot be changed by refreshing.</p>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+export function ResultModal({ entry, campaign, onClose, onViewLedger, onToast }) {
+  const [verified, setVerified] = useState(false);
+  if (!entry) return null;
+  const won = entry.outcome === 'win';
+
+  const saveReceipt = () => {
+    downloadJson(`tiketi-${entry.receipt}.json`, {
+      campaignId: campaign.id,
+      commitment: campaign.commitment,
+      entry,
+      verification: 'SHA-256 of the canonical tiketi.result.v1 payload',
+    });
+    onToast('Receipt downloaded. Keep it somewhere safe.');
+  };
+
+  const checkReceipt = async () => {
+    const valid = await verifyReceipt(entry);
+    setVerified(valid);
+    onToast(valid ? 'Receipt hash verified on this device.' : 'Receipt verification failed.');
+  };
+
+  return (
+    <Modal onClose={onClose} label={won ? 'Winning result' : 'Spin result'} className={`result-modal ${won ? 'won' : ''}`}>
+      {won && (
+        <div className="confetti" aria-hidden="true">
+          {Array.from({ length: 20 }, (_, index) => (
+            <i key={index} style={{ '--i': index, '--x': `${(index * 37) % 100}%`, '--delay': `${(index % 6) * 0.08}s` }} />
+          ))}
+        </div>
+      )}
+      <div className={`result-symbol ${won ? 'win' : ''}`}>
+        {won ? <Ticket size={38} /> : <Hash size={34} />}
+      </div>
+      <span className="eyebrow">OFFICIAL RESULT · {entry.receipt}</span>
+      <h2>{won ? 'You’re going to Detty Dezemba!' : 'Not this time.'}</h2>
+      <p className="result-lead">
+        {won
+          ? `You won ${entry.prize}. We’ll contact you on your payment number with claim instructions.`
+          : 'Your paid entry drew a non-winning outcome from the fixed pool. Your result is final and publicly verifiable.'}
+      </p>
+
+      <div className="result-ticket">
+        <div><span>Entry</span><strong>#{String(entry.entryNumber).padStart(3, '0')}</strong></div>
+        <div><span>Result</span><strong className={won ? 'lime-text' : ''}>{won ? entry.prize : 'NO WIN'}</strong></div>
+        <div><span>Payment ref.</span><strong>{entry.paymentReference || 'Confirmed'}</strong></div>
+        <div><span>Receipt hash</span><strong>{shortHash(entry.resultHash, 10)}</strong></div>
+      </div>
+
+      <div className="result-actions">
+        <button className="button button-primary" type="button" onClick={saveReceipt}><Download size={17} /> Save receipt</button>
+        <button className="button button-secondary" type="button" onClick={checkReceipt}>
+          {verified ? <CheckCircle2 size={17} /> : <FileCheck2 size={17} />}
+          {verified ? 'Verified' : 'Verify hash'}
+        </button>
+      </div>
+      <button className="text-button centered" type="button" onClick={onViewLedger}>View this result in the public ledger <ArrowRight size={15} /></button>
+    </Modal>
+  );
+}
+
+export function FairnessModal({ campaign, onClose, onToast }) {
+  const copyCommitment = async () => {
+    await copyText(campaign.commitment);
+    onToast('Pool commitment copied.');
+  };
+
+  const downloadCommitment = () => {
+    downloadJson('tiketi-pool-commitment.json', {
+      schema: 'tiketi.commitment-record.v1',
+      campaignId: campaign.id,
+      commitment: campaign.commitment,
+      createdAt: campaign.createdAt,
+      totalEntries: campaign.totalEntries,
+      totalWinners: campaign.totalWinners,
+      algorithm: 'SHA-256 of JSON.stringify(tiketi.pool.v1 payload)',
+      poolRevealed: campaign.poolRevealed,
+    });
+    onToast('Commitment record downloaded.');
+  };
+
+  const downloadReveal = async () => {
+    const reveal = await api('/api/campaign/reveal');
+    downloadJson('tiketi-pool-reveal.json', reveal);
+    onToast('Revealed pool downloaded for independent verification.');
+  };
+
+  return (
+    <Modal onClose={onClose} label="How ticket spin verification works" className="fairness-modal">
+      <span className="eyebrow">VERIFY, DON’T JUST TRUST</span>
+      <h2>What the hashes prove.</h2>
+      <p className="modal-intro">The system publishes a fingerprint of the shuffled outcome pool before entries open. After the drop, the original pool and salt can be revealed against that fingerprint.</p>
+      <ol className="verification-steps">
+        <li><b>01</b><div><strong>Pool committed</strong><p>Exactly {campaign.totalWinners} wins and {campaign.totalEntries - campaign.totalWinners} non-wins are shuffled with Node’s cryptographic RNG. The salt and pool stay private while entries are open.</p></div></li>
+        <li><b>02</b><div><strong>Payment fixes the position</strong><p>Confirmed payments receive the next pool position in order. The browser only animates that outcome; it cannot choose or reroll it.</p></div></li>
+        <li><b>03</b><div><strong>Results form a hash chain</strong><p>Each public receipt includes the previous result’s hash. Changing an old result breaks the chain that follows it.</p></div></li>
+        <li><b>04</b><div><strong>Pool revealed after close</strong><p>Anyone can then hash the revealed pool and compare it with the commitment published before play.</p></div></li>
+      </ol>
+      <div className="modal-hash-box">
+        <span>POOL COMMITMENT · SHA-256</span>
+        <code>{campaign.commitment}</code>
+        <button className="icon-button" type="button" onClick={copyCommitment} aria-label="Copy pool commitment"><Clipboard size={17} /></button>
+      </div>
+      <div className="result-actions">
+        <button className="button button-secondary" type="button" onClick={downloadCommitment}><Download size={16} /> Commitment record</button>
+        {campaign.poolRevealed && <button className="button button-primary" type="button" onClick={downloadReveal}><LockKeyhole size={16} /> Download reveal</button>}
+      </div>
+      {!campaign.poolRevealed && <p className="microcopy">Full pool reveal unlocks after the drop closes and every paid spin is complete.</p>}
+    </Modal>
+  );
+}
+
+export function ResultsModal({ campaign, onClose, onToast }) {
+  const [tab, setTab] = useState('latest');
+  const [visibleCount, setVisibleCount] = useState(7);
+  const [verified, setVerified] = useState({});
+  const entries = tab === 'winners'
+    ? campaign.ledger.filter((entry) => entry.outcome === 'win')
+    : campaign.ledger;
+  const winnerCount = campaign.ledger.filter((entry) => entry.outcome === 'win').length;
+
+  const downloadLedger = () => {
+    downloadJson('tiketi-public-ledger.json', {
+      schema: 'tiketi.public-ledger.v1',
+      campaignId: campaign.id,
+      commitment: campaign.commitment,
+      ledgerHead: campaign.ledgerHead,
+      ledgerLength: campaign.ledgerLength,
+      entries: [...campaign.ledger].reverse(),
+    });
+    onToast('Public ledger downloaded.');
+  };
+
+  const verifyEntry = async (entry) => {
+    const valid = await verifyReceipt(entry);
+    setVerified((current) => ({ ...current, [entry.receipt]: valid }));
+    onToast(valid ? `${entry.receipt} verified on this device.` : `${entry.receipt} could not be verified.`);
+  };
+
+  return (
+    <Modal onClose={onClose} label="Public spin results" className="public-results-modal">
+      <span className="eyebrow">PUBLIC LEDGER</span>
+      <h2>Every spin. On record.</h2>
+      <p className="modal-intro">Masked entrants, final outcomes, and receipts you can verify on your own device.</p>
+      <div className="results-modal-toolbar">
+        <div className="ledger-tabs" role="tablist" aria-label="Result filters">
+          <button type="button" role="tab" aria-selected={tab === 'latest'} className={tab === 'latest' ? 'active' : ''} onClick={() => { setTab('latest'); setVisibleCount(7); }}>Latest <span>{campaign.ledger.length}</span></button>
+          <button type="button" role="tab" aria-selected={tab === 'winners'} className={tab === 'winners' ? 'active' : ''} onClick={() => { setTab('winners'); setVisibleCount(7); }}>Winners <span>{winnerCount}</span></button>
+        </div>
+        <button className="button button-secondary" type="button" onClick={downloadLedger}><Download size={15} /> Download</button>
+      </div>
+
+      <div className="focus-result-list">
+        {entries.slice(0, visibleCount).map((entry) => (
+          <div className="focus-result-row" key={entry.receipt}>
+            <span className={`outcome-icon ${entry.outcome === 'win' ? 'winner' : ''}`}>{entry.outcome === 'win' ? <Trophy size={16} /> : <Hash size={15} />}</span>
+            <div className="focus-result-person"><strong>{entry.receipt}</strong><span>#{String(entry.entryNumber).padStart(3, '0')} · {entry.phone}</span></div>
+            <span className={`outcome-badge ${entry.outcome === 'win' ? 'winner' : ''}`}>{entry.outcome === 'win' ? entry.prize : 'NO WIN'}</span>
+            <button className={`verify-button ${verified[entry.receipt] ? 'verified' : ''}`} type="button" onClick={() => verifyEntry(entry)}>
+              {verified[entry.receipt] ? <CheckCircle2 size={15} /> : <FileCheck2 size={15} />}
+              {verified[entry.receipt] ? 'Valid' : 'Verify'}
+            </button>
+          </div>
+        ))}
+        {entries.length === 0 && <div className="empty-ledger"><Trophy size={26} /><strong>No revealed winners yet.</strong><span>Winning receipts will appear here.</span></div>}
+      </div>
+      {visibleCount < entries.length && <button className="show-more" type="button" onClick={() => setVisibleCount((count) => count + 8)}>Show more results</button>}
+      <div className="results-modal-foot"><LockKeyhole size={13} /> Ledger head: {shortHash(campaign.ledgerHead)}</div>
+    </Modal>
+  );
+}
+
+const legalContent = {
+  terms: {
+    eyebrow: 'DROP RULES',
+    title: 'Plain-language terms.',
+    sections: [
+      ['Entry', 'This demonstration charges no money. For an approved live drop, each confirmed KES 500 M-Pesa payment receives one entry and one outcome reveal. Entrants must be 18 or older, with a maximum of three entries per phone number.'],
+      ['Prizes and results', 'There are five Detty Dezemba Festival tickets in a fixed pool of 25 entries, giving 1 in 5 starting odds. A winning receipt shows the prize reference. Winners must be reachable on their payment number and complete reasonable identity and eligibility checks before fulfilment.'],
+      ['Refunds and cancellation', 'A revealed, valid entry is not refundable simply because it did not win. If the operator cancels the drop, affected paid entrants should receive a refund to the original payment number. Final launch terms must be reviewed by qualified Kenyan counsel.'],
+    ],
+  },
+  privacy: {
+    eyebrow: 'PRIVACY',
+    title: 'Your number is not the show.',
+    sections: [
+      ['What is collected', 'A live service needs your phone number, payment reference, entry position and result to process payment, contact winners and prevent duplicate or fraudulent claims. This demo stores only test data.'],
+      ['What is public', 'The public ledger displays a masked phone number, receipt, entry position, outcome and cryptographic proof. It never displays your full phone number or M-Pesa PIN.'],
+      ['Production obligations', 'Before launch, the operator should publish a complete privacy notice, define retention periods, secure the production database and comply with applicable Kenyan data-protection requirements.'],
+    ],
+  },
+  responsible: {
+    eyebrow: 'PLAY WITH LIMITS',
+    title: 'A ticket is a maybe, not a plan.',
+    sections: [
+      ['18+ only', 'This is a paid chance-based promotion in live mode. Never borrow money to enter, never treat it as income, and only spend what you can comfortably afford to lose.'],
+      ['Built-in limit', 'The drop limits each phone number to three entries. A loss is final; refreshing or paying again cannot change a previous result.'],
+      ['Need a pause?', 'If entering stops feeling fun or starts causing pressure, stop. The operator should provide account-level exclusion and support routes before accepting live payments.'],
+    ],
+  },
+};
+
+export function LegalModal({ type, onClose }) {
+  const content = legalContent[type] || legalContent.terms;
+  return (
+    <Modal onClose={onClose} label={content.title} className="legal-modal">
+      <span className="eyebrow">{content.eyebrow}</span>
+      <h2>{content.title}</h2>
+      {content.sections.map(([title, body]) => (
+        <section key={title}>
+          <h3>{title}</h3>
+          <p>{body}</p>
+        </section>
+      ))}
+      <div className="legal-note"><ShieldCheck size={18} /> Paid prize promotions in Kenya may require BCLB authorisation. Obtain all required approvals before enabling live entry payments.</div>
+    </Modal>
+  );
+}

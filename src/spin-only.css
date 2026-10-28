@@ -1,0 +1,359 @@
+.spin-app {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 50% 28%, rgba(217, 255, 99, 0.17), transparent 25rem),
+    var(--cream);
+}
+
+.spin-header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  width: min(1100px, 100%);
+  height: 78px;
+  align-items: center;
+  justify-content: space-between;
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+
+.spin-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spin-demo-badge {
+  padding: 4px 7px;
+  border-radius: 5px;
+  color: var(--ink);
+  background: var(--lime);
+  font-family: var(--display);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.spin-header-actions button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: #56665c;
+  background: rgba(255, 254, 249, 0.75);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.spin-header-actions button:hover {
+  color: var(--ink);
+  background: #fff;
+}
+
+.spin-main {
+  width: min(540px, calc(100% - 32px));
+  margin-inline: auto;
+  padding: 30px 0 26px;
+}
+
+.spin-title {
+  margin-bottom: 24px;
+  text-align: center;
+  animation: hero-rise 600ms ease both;
+}
+
+.spin-title .drop-label {
+  margin-bottom: 12px;
+  font-size: 9px;
+}
+
+.spin-title h1 {
+  margin-bottom: 9px;
+  font-size: clamp(32px, 4vw, 44px);
+  line-height: 1.05;
+  letter-spacing: -0.055em;
+}
+
+.spin-title p {
+  margin: 0;
+  color: #718077;
+  font-size: 11px;
+}
+
+.focus-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 24px 27px 21px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 30px;
+  color: #f7f8ef;
+  background:
+    radial-gradient(circle at 85% 10%, rgba(217, 255, 99, 0.1), transparent 17rem),
+    linear-gradient(150deg, #173f34 0%, #0c2b23 78%);
+  box-shadow: 0 30px 70px rgba(18, 59, 49, 0.18);
+  animation: card-arrive 750ms 100ms cubic-bezier(0.2, 0.75, 0.2, 1) both;
+}
+
+.focus-glow {
+  position: absolute;
+  z-index: -1;
+  top: 45%;
+  left: 50%;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: rgba(217, 255, 99, 0.07);
+  filter: blur(70px);
+  transform: translate(-50%, -50%);
+  animation: glow-breathe 6s ease-in-out infinite alternate;
+}
+
+.focus-card .spin-card-top {
+  position: relative;
+  z-index: 2;
+}
+
+.focus-card .wheel-wrap {
+  width: min(350px, 100%);
+  margin-top: 20px;
+}
+
+.focus-card .wheel-disclaimer {
+  margin-bottom: 15px;
+}
+
+.focus-entry-button {
+  width: 100%;
+  min-height: 54px;
+  margin-top: 18px;
+  border-radius: 14px;
+  color: var(--ink);
+  background: var(--lime);
+  font-size: 14px;
+  box-shadow: 0 10px 25px rgba(217, 255, 99, 0.1);
+}
+
+.focus-entry-button:not(:disabled):hover {
+  background: #e5ff91;
+  box-shadow: 0 12px 30px rgba(217, 255, 99, 0.16);
+}
+
+.focus-secondary-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 21px;
+  margin-top: 17px;
+}
+
+.focus-secondary-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 0;
+  border: 0;
+  color: #9eb4a8;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.focus-secondary-actions button:hover {
+  color: var(--lime);
+}
+
+.focus-legal {
+  margin: 17px 0 0;
+  color: #87928b;
+  font-size: 9px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.public-results-modal {
+  width: min(100%, 700px);
+}
+
+.results-modal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 21px 0 14px;
+}
+
+.results-modal-toolbar .button {
+  min-height: 38px;
+  padding: 9px 12px;
+  font-size: 10px;
+}
+
+.focus-result-list {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fafbf6;
+}
+
+.focus-result-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 11px;
+  min-height: 65px;
+  padding: 11px 13px;
+  border-bottom: 1px solid #e8ece5;
+}
+
+.focus-result-row:last-child {
+  border-bottom: 0;
+}
+
+.focus-result-person {
+  min-width: 0;
+}
+
+.focus-result-person strong,
+.focus-result-person span {
+  display: block;
+}
+
+.focus-result-person strong {
+  margin-bottom: 3px;
+  font-family: var(--display);
+  font-size: 11px;
+}
+
+.focus-result-person span {
+  overflow: hidden;
+  color: #849087;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-result-row .outcome-badge {
+  max-width: 105px;
+}
+
+.results-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  color: #849087;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8px;
+}
+
+@media (max-width: 600px) {
+  .spin-header {
+    height: 68px;
+    padding-inline: 16px;
+  }
+
+  .spin-main {
+    width: min(100% - 24px, 520px);
+    padding-top: 21px;
+  }
+
+  .spin-title {
+    margin-bottom: 19px;
+  }
+
+  .spin-title h1 {
+    font-size: 31px;
+  }
+
+  .spin-title p {
+    font-size: 9px;
+  }
+
+  .focus-card {
+    padding: 19px 17px 18px;
+    border-radius: 24px;
+  }
+
+  .focus-card .spin-card-top {
+    font-size: 8px;
+  }
+
+  .focus-card .wheel-wrap {
+    margin-top: 18px;
+  }
+
+  .focus-entry-button {
+    margin-top: 16px;
+    font-size: 12px;
+  }
+
+  .focus-secondary-actions {
+    gap: 14px;
+  }
+
+  .focus-secondary-actions button {
+    font-size: 9px;
+  }
+
+  .focus-legal {
+    font-size: 8px;
+  }
+
+  .focus-result-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 7px 9px;
+    padding: 10px;
+  }
+
+  .focus-result-row .outcome-icon {
+    grid-row: 1 / 3;
+  }
+
+  .focus-result-person {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+
+  .focus-result-row .outcome-badge {
+    grid-column: 3;
+    grid-row: 1;
+    max-width: 95px;
+  }
+
+  .focus-result-row .verify-button {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .results-modal-toolbar .button {
+    padding-inline: 10px;
+  }
+}
+
+@media (max-width: 370px) {
+  .spin-title h1 {
+    font-size: 28px;
+  }
+
+  .focus-card {
+    padding-inline: 14px;
+  }
+
+  .focus-secondary-actions {
+    gap: 10px;
+  }
+
+  .results-modal-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .results-modal-toolbar .button {
+    width: 100%;
+  }
+}
