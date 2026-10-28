@@ -514,13 +514,19 @@ h3,
 }
 
 .checkout-steps {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr);
+  gap: 6px;
   border: 1px solid rgba(244, 237, 224, 0.08);
   border-radius: 4px;
   background: #19160f;
 }
 
 .checkout-steps > span {
+  min-width: 0;
+  justify-content: center;
   color: #8f8576;
+  white-space: nowrap;
 }
 
 .checkout-steps > span.active {
@@ -538,6 +544,8 @@ h3,
 }
 
 .checkout-steps i {
+  width: 100%;
+  flex: none;
   background: rgba(244, 237, 224, 0.14);
 }
 
