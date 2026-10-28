@@ -70,7 +70,7 @@ The wheel's five equal segments illustrate the **1 in 5 starting odds**. They do
 
 ## Deploy to Vercel (hosted demo)
 
-The `api/[...path].js` catch-all function adapts the Express API for Vercel, while Vite publishes the frontend from `dist`:
+The `api/index.js` function and `/api/*` rewrite adapt the Express API for Vercel, while Vite publishes the frontend from `dist`:
 
 ```bash
 npx vercel link
