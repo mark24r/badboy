@@ -139,7 +139,7 @@ export function createCampaign({ seedDemo = false, seedCount = 10 } = {}) {
       const entry = createPendingEntry(state, phone, createdAt);
       markEntryPaid(state, entry.id, {
         paidAt: new Date(Date.parse(createdAt) + 45_000).toISOString(),
-        mpesaReceipt: `DEMO${String(index + 1).padStart(6, '0')}`,
+        mpesaReceipt: `SIM${String(index + 1).padStart(6, '0')}`,
       });
       revealEntry(state, entry.id, new Date(Date.parse(createdAt) + 52_000).toISOString());
     }

@@ -183,7 +183,7 @@ export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) 
             <Phone size={18} />
           </div>
           <p className="field-help" id="phone-help">
-            {campaign.paymentMode === 'demo' ? 'Demo tip: use 712 345 678. No real payment is made.' : 'Use the Safaricom number you want to pay with.'}
+            {campaign.paymentMode === 'demo' ? 'Use 712 345 678. No real payment is made.' : 'Use the Safaricom number you want to pay with.'}
           </p>
 
           <label className="terms-check">
@@ -368,7 +368,7 @@ const legalContent = {
     eyebrow: 'PRIVACY',
     title: 'Your number is not the show.',
     sections: [
-      ['What is collected', 'A live service needs your phone number, payment reference, entry position and result to process payment, contact winners and prevent duplicate or fraudulent claims. This demo stores only test data.'],
+      ['What is collected', 'A live service needs your phone number, payment reference, entry position and result to process payment, contact winners and prevent duplicate or fraudulent claims. This preview stores only test data.'],
       ['What is public', 'The public ledger displays a masked phone number, receipt, entry position, outcome and cryptographic proof. It never displays your full phone number or M-Pesa PIN.'],
       ['Production obligations', 'Before launch, the operator should publish a complete privacy notice, define retention periods, secure the production database and comply with applicable Kenyan data-protection requirements.'],
     ],

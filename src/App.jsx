@@ -173,9 +173,6 @@ export default function App() {
       </div>
       <header className="spin-header">
         <Logo />
-        <div className="spin-header-actions">
-          {campaign.paymentMode === 'demo' && <span className="spin-demo-badge">DEMO</span>}
-        </div>
       </header>
 
       <main className="spin-main">
@@ -237,7 +234,7 @@ export default function App() {
           </div>
         </section>
 
-        <p className="focus-legal">18+ · Demo mode accepts no real money · Maximum {campaign.maxEntriesPerPhone} entries per number</p>
+        <p className="focus-legal">18+ · No real money is accepted · Maximum {campaign.maxEntriesPerPhone} entries per number</p>
         <a className="detty-photo-credit" href="https://dettydezemba.com/" target="_blank" rel="noreferrer">Event photos & festival inspiration: dettydezemba.com</a>
       </main>
 

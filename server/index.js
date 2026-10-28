@@ -114,7 +114,7 @@ app.post('/api/payments/initiate', paymentRateLimit, async (request, response) =
       return response.status(202).json({
         entry: playerEntry(entry),
         mode: 'demo',
-        message: 'Demo STK Push created. No real payment will be taken.',
+        message: 'Simulated STK Push created. No real payment will be taken.',
       });
     }
 
@@ -178,11 +178,11 @@ app.post('/api/payments/callback', (request, response) => {
 
 app.post('/api/demo/complete-payment', (request, response) => {
   if (paymentMode !== 'demo') {
-    return response.status(403).json({ error: 'Demo payment confirmation is disabled in live mode.' });
+    return response.status(403).json({ error: 'Simulated payment confirmation is disabled in live mode.' });
   }
   try {
     const entry = markEntryPaid(state, request.body?.entryId, {
-      mpesaReceipt: `DEMO${Date.now().toString().slice(-8)}`,
+      mpesaReceipt: `SIM${Date.now().toString().slice(-8)}`,
     });
     saveCampaign(state, dataFile);
     return response.json({ entry: playerEntry(entry), campaign: campaignResponse() });
