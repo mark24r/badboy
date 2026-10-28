@@ -132,3 +132,27 @@ test('validates Paystack webhook signatures against the raw body', () => {
   assert.equal(isValidPaystackSignature(rawBody, 'not-a-signature', secretKey), false);
   assert.equal(isValidPaystackSignature(rawBody, null, secretKey), false);
 });
+
+test('uses the server environment key in the Authorization header when no override is provided', async () => {
+  const previous = process.env.PAYSTACK_SECRET_KEY;
+  process.env.PAYSTACK_SECRET_KEY = secretKey;
+  let authorization;
+  try {
+    await initiatePaystackMpesa({
+      phone: '254712345678',
+      email: 'user@example.com',
+      amount: 500,
+      entryId: entry.id,
+      campaignId: 'campaign',
+      reference,
+      fetchImpl: async (url, options) => {
+        authorization = options.headers.Authorization;
+        return jsonResponse({ status: true, data: { reference, status: 'pay_offline' } });
+      },
+    });
+  } finally {
+    if (previous === undefined) delete process.env.PAYSTACK_SECRET_KEY;
+    else process.env.PAYSTACK_SECRET_KEY = previous;
+  }
+  assert.equal(authorization, `Bearer ${secretKey}`);
+});

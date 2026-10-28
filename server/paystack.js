@@ -7,7 +7,7 @@ export function paystackConfigured({ live = false, secretKey = process.env.PAYST
   return live ? secretKey.startsWith('sk_live_') : true;
 }
 
-function requireLiveSecret(secretKey) {
+function requireLiveSecret(secretKey = process.env.PAYSTACK_SECRET_KEY) {
   if (!paystackConfigured({ live: true, secretKey })) {
     const error = new Error('Live Paystack payments are not configured. Add a live PAYSTACK_SECRET_KEY on the server.');
     error.status = 503;
