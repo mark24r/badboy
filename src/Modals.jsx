@@ -60,6 +60,8 @@ export function PaymentModal({ open, onClose, campaign, entryAccessCode = '', on
   const [entry, setEntry] = useState(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [manualEntryAccessCode, setManualEntryAccessCode] = useState('');
+  const effectiveEntryAccessCode = entryAccessCode || manualEntryAccessCode;
 
   useEffect(() => {
     if (open && (!entry || entry.paymentStatus === 'failed' || entry.paymentStatus === 'review')) {
@@ -130,7 +132,7 @@ export function PaymentModal({ open, onClose, campaign, entryAccessCode = '', on
         body: JSON.stringify({
           phone,
           email: campaign.paymentMode === 'live' ? email : undefined,
-          accessCode: campaign.entryAccessRequired ? entryAccessCode : undefined,
+          accessCode: campaign.entryAccessRequired ? effectiveEntryAccessCode : undefined,
           expectedAmount: campaign.paymentMode === 'live' ? campaign.entryPrice : undefined,
           acceptedTerms: accepted,
         }),
@@ -213,20 +215,39 @@ export function PaymentModal({ open, onClose, campaign, entryAccessCode = '', on
             </>
           )}
 
+          {campaign.entryAccessRequired && !entryAccessCode && (
+            <>
+              <label className="field-label" htmlFor="private-entry-code">Private access code</label>
+              <div className="phone-field">
+                <input
+                  id="private-entry-code"
+                  type="password"
+                  autoComplete="off"
+                  placeholder="Paste your access code"
+                  value={manualEntryAccessCode}
+                  onChange={(event) => setManualEntryAccessCode(event.target.value)}
+                  required
+                />
+                <LockKeyhole size={18} />
+              </div>
+              <p className="field-help">Enter the code supplied with this private invitation.</p>
+            </>
+          )}
+
           <label className="terms-check">
             <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} required />
             <span>I confirm I’m 18+ and agree to the drop terms, including the limit of {campaign.maxEntriesPerPhone} paid entries per number.</span>
           </label>
 
-          {campaign.entryAccessRequired && !entryAccessCode && (
-            <div className="form-error" role="alert">This checkout is invite-only. Open your private link in this tab.</div>
+          {campaign.entryAccessRequired && !effectiveEntryAccessCode && (
+            <div className="form-error" role="alert">This checkout is invite-only. Enter your private access code above.</div>
           )}
           {error && <div className="form-error" role="alert">{error}</div>}
 
           <button
             className="button button-primary button-full payment-button"
             type="submit"
-            disabled={!accepted || submitting || campaign.status === 'closed' || (campaign.entryAccessRequired && !entryAccessCode)}
+            disabled={!accepted || submitting || campaign.status === 'closed' || (campaign.entryAccessRequired && !effectiveEntryAccessCode)}
           >
             {submitting ? <LoaderCircle size={19} className="spin-icon" /> : <LockKeyhole size={18} />}
             {submitting ? 'Starting secure payment…' : `Pay KES ${campaign.entryPrice} with Paystack`}
