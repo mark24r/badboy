@@ -68,6 +68,17 @@ The spotlight component itself needs no image assets, context providers, or addi
 
 The wheel's five equal segments illustrate the **1 in 5 starting odds**. They do not determine the outcome; the remaining odds change as positions in the fixed pool are allocated.
 
+## Deploy to Vercel (hosted demo)
+
+The `api/[...path].js` catch-all function adapts the Express API for Vercel, while Vite publishes the frontend from `dist`:
+
+```bash
+npx vercel link
+npx vercel deploy --prod
+```
+
+Vercel's filesystem is ephemeral, so the hosted demo stores its campaign in that function instance's temporary storage. Entries and results can reset between instances or deployments; this is suitable for a product demonstration, not a shared production campaign. The Vercel adapter refuses `PAYMENTS_MODE=live`. Use a conventional Node host for the existing local JSON mode, or replace the store with a production database and atomic transactions before enabling real payments.
+
 ## Enable Safaricom Daraja
 
 Copy `.env.example` to `.env` and configure:

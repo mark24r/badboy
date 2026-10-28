@@ -12,5 +12,6 @@ data/
 .local/
 .npm/
 .arena/
+.vercel/
 .playwright-cli/
 coverage/

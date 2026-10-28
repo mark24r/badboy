@@ -16,11 +16,20 @@ import {
 } from './campaign.js';
 import { darajaConfigured, initiateStkPush } from './daraja.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const moduleFile = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(moduleFile);
 const root = path.resolve(__dirname, '..');
-const dataFile = process.env.DATA_FILE || path.join(root, 'data', 'campaign.json');
+const isVercel = Boolean(process.env.VERCEL);
+const dataFile = process.env.DATA_FILE || (isVercel
+  ? path.join('/tmp', 'detty-dezemba-demo-campaign.json')
+  : path.join(root, 'data', 'campaign.json'));
 const paymentMode = process.env.PAYMENTS_MODE === 'live' ? 'live' : 'demo';
-const isProduction = process.env.NODE_ENV === 'production';
+const isProduction = process.env.NODE_ENV === 'production' || isVercel;
+
+if (isVercel && paymentMode === 'live') {
+  throw new Error('Live payments require persistent production storage and are disabled on the ephemeral Vercel demo.');
+}
+
 const state = loadOrCreateCampaign(dataFile, { demo: paymentMode === 'demo' });
 
 const app = express();
@@ -65,7 +74,7 @@ function sendError(response, error) {
 }
 
 app.get('/api/health', (request, response) => {
-  response.json({ ok: true, mode: paymentMode });
+  response.json({ ok: true, mode: paymentMode, storage: isVercel ? 'ephemeral-demo' : 'local-json' });
 });
 
 app.get('/api/campaign', (request, response) => {
@@ -202,7 +211,11 @@ app.use('/api', (request, response) => {
   response.status(404).json({ error: 'API route not found.' });
 });
 
-if (isProduction) {
+if (isVercel) {
+  app.use((request, response) => {
+    response.status(404).json({ error: 'Route not found.' });
+  });
+} else if (isProduction) {
   app.use(express.static(path.join(root, 'dist'), { maxAge: '1h', etag: true }));
   app.get('*', (request, response) => {
     response.sendFile(path.join(root, 'dist', 'index.html'));
@@ -217,14 +230,19 @@ if (isProduction) {
   app.use(vite.middlewares);
 }
 
-const port = Number(process.env.PORT || 3000);
-const server = app.listen(port, '0.0.0.0', () => {
-  console.log(`Tiketi is running on port ${port} in ${isProduction ? 'production' : 'development'} mode.`);
-  console.log(`Payments: ${paymentMode}${paymentMode === 'live' && !darajaConfigured() ? ' (Daraja configuration incomplete)' : ''}.`);
-});
+const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === moduleFile;
+if (isDirectRun) {
+  const port = Number(process.env.PORT || 3000);
+  const server = app.listen(port, '0.0.0.0', () => {
+    console.log(`Detty Dezemba is running on port ${port} in ${isProduction ? 'production' : 'development'} mode.`);
+    console.log(`Payments: ${paymentMode}${paymentMode === 'live' && !darajaConfigured() ? ' (Daraja configuration incomplete)' : ''}.`);
+  });
 
-function shutdown() {
-  server.close(() => process.exit(0));
+  function shutdown() {
+    server.close(() => process.exit(0));
+  }
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+
+export default app;
