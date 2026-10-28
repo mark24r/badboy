@@ -5,10 +5,12 @@ import path from 'node:path';
 export const CAMPAIGN_ID = 'detty-dezemba-dec-2026';
 export const POOL_SCHEMA = 'tiketi.pool.v5';
 export const TOTAL_ENTRIES = 120;
-export const TOTAL_REGULAR_TICKETS = 1;
-export const TOTAL_VIP_TICKETS = 1;
+// This presentation mode is deliberately unavailable in live payment mode.
+export const DEMO_ALWAYS_WIN = process.env.PAYMENTS_MODE !== 'live' && process.env.DEMO_ALWAYS_WIN === 'true';
+export const TOTAL_REGULAR_TICKETS = DEMO_ALWAYS_WIN ? 60 : 1;
+export const TOTAL_VIP_TICKETS = DEMO_ALWAYS_WIN ? 60 : 1;
 export const TOTAL_WINNERS = TOTAL_REGULAR_TICKETS + TOTAL_VIP_TICKETS;
-export const TOTAL_FREE_SPINS = 4;
+export const TOTAL_FREE_SPINS = DEMO_ALWAYS_WIN ? 0 : 4;
 export const TOTAL_REWARDS = TOTAL_WINNERS + TOTAL_FREE_SPINS;
 export const DEFAULT_ENTRY_PRICE = 500;
 
@@ -174,6 +176,7 @@ export function refreshCampaignStatus(state) {
 }
 
 export function createCampaign({ seedDemo = false, seedCount = 10 } = {}) {
+  const shouldSeedDemo = seedDemo && !DEMO_ALWAYS_WIN;
   const pool = secureShuffle([
     ...Array(TOTAL_REGULAR_TICKETS).fill('win'),
     ...Array(TOTAL_VIP_TICKETS).fill('vip-win'),
@@ -182,7 +185,7 @@ export function createCampaign({ seedDemo = false, seedCount = 10 } = {}) {
   ]);
 
   // Seeded demo entries are non-winning so the hosted preview starts open.
-  if (seedDemo) {
+  if (shouldSeedDemo) {
     for (let index = 0; index < seedCount; index += 1) {
       if (pool[index] === 'no-win') continue;
       const swapIndex = pool.findIndex((outcome, candidate) => candidate >= seedCount && outcome === 'no-win');
@@ -192,7 +195,7 @@ export function createCampaign({ seedDemo = false, seedCount = 10 } = {}) {
 
   // A free spin must always have a following position available for its bonus.
   if (pool[pool.length - 1] === 'free-spin') {
-    const firstCandidate = seedDemo ? seedCount : 0;
+    const firstCandidate = shouldSeedDemo ? seedCount : 0;
     const swapIndex = pool.findIndex((outcome, candidate) => candidate >= firstCandidate && outcome === 'no-win');
     [pool[pool.length - 1], pool[swapIndex]] = [pool[swapIndex], pool[pool.length - 1]];
   }
@@ -203,7 +206,7 @@ export function createCampaign({ seedDemo = false, seedCount = 10 } = {}) {
     poolSchema: POOL_SCHEMA,
     campaignId: CAMPAIGN_ID,
     entryPrice: ENTRY_PRICE,
-    createdAt: new Date(now - (seedDemo ? (seedCount + 2) * 8 * 60_000 : 0)).toISOString(),
+    createdAt: new Date(now - (shouldSeedDemo ? (seedCount + 2) * 8 * 60_000 : 0)).toISOString(),
     pool,
     poolSalt: crypto.randomBytes(32).toString('hex'),
     poolRevealed: false,
@@ -216,7 +219,7 @@ export function createCampaign({ seedDemo = false, seedCount = 10 } = {}) {
   };
   state.commitment = computeCommitment(state);
 
-  if (seedDemo) {
+  if (shouldSeedDemo) {
     for (let index = 0; index < seedCount; index += 1) {
       if (!state.acceptingEntries) break;
       const phone = `2547${String(10000000 + index * 7919).padStart(8, '0')}`;
@@ -396,10 +399,11 @@ export function revealEntry(state, entryId, spunAt = new Date().toISOString()) {
 
   entry.spinStatus = 'completed';
   entry.spunAt = spunAt;
+  const ticketReference = DEMO_ALWAYS_WIN ? String(entry.entryNumber).padStart(2, '0') : '01';
   if (entry.outcome === 'win') {
-    entry.prize = 'REGULAR TICKET 01';
+    entry.prize = `REGULAR TICKET ${ticketReference}`;
   } else if (entry.outcome === 'vip-win') {
-    entry.prize = 'VIP TICKET 01';
+    entry.prize = `VIP TICKET ${ticketReference}`;
   } else if (entry.outcome === 'free-spin') {
     entry.prize = 'FREE SPIN';
   }
@@ -464,7 +468,8 @@ export function publicCampaign(state) {
   return {
     id: state.campaignId,
     title: 'Detty Dezemba Festival',
-    prize: '1 Regular ticket + 1 VIP ticket + 4 Free Spins',
+    prize: DEMO_ALWAYS_WIN ? 'Every spin wins a Regular or VIP demo ticket' : '1 Regular ticket + 1 VIP ticket + 4 Free Spins',
+    demoAlwaysWin: DEMO_ALWAYS_WIN,
     entryPrice: ENTRY_PRICE,
     committedEntryPrice: state.entryPrice ?? DEFAULT_ENTRY_PRICE,
     currency: 'KES',

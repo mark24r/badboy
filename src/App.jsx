@@ -198,7 +198,7 @@ export default function App() {
         <div className="spin-title">
           <div className="drop-label"><span className={`live-dot ${campaign.status === 'closed' ? 'closed' : ''}`} /> DECEMBER 2026 <i /> NAIROBI</div>
           <h1><span>Detty<br className="mobile-title-break" /> Dezemba</span>Ticket spin.</h1>
-          <p>1 Regular ticket · 1 VIP ticket · 4 Free Spins · KES {campaign.entryPrice} per paid entry</p>
+          <p>{campaign.demoAlwaysWin ? campaign.prize : '1 Regular ticket · 1 VIP ticket · 4 Free Spins'} · KES {campaign.entryPrice} per paid entry</p>
         </div>
 
         <section className="focus-card" id="spin-card" aria-label="Detty Dezemba ticket spinning wheel">
@@ -255,7 +255,7 @@ export default function App() {
           </div>
         </section>
 
-        <p className="focus-legal">18+ · {campaign.paymentMode === 'demo' ? 'Demo · No real money is accepted' : 'Live payment via Paystack'} · Maximum {campaign.maxEntriesPerPhone} paid entries per number</p>
+        <p className="focus-legal">18+ · {campaign.demoAlwaysWin ? 'Always-win demo · No real money or prizes' : campaign.paymentMode === 'demo' ? 'Demo · No real money is accepted' : 'Live payment via Paystack'} · Maximum {campaign.maxEntriesPerPhone} paid entries per number</p>
         <a className="detty-photo-credit" href="https://dettydezemba.com/" target="_blank" rel="noreferrer">Event photos & festival inspiration: dettydezemba.com</a>
       </main>
 
