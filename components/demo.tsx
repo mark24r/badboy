@@ -11,9 +11,10 @@ import { GlowCard } from "@/components/ui/spotlight-card";
 interface SpotlightStepsProps {
   totalEntries?: number;
   totalWinners?: number;
+  totalFreeSpins?: number;
 }
 
-export function Default({ totalEntries = 25, totalWinners = 5 }: SpotlightStepsProps) {
+export function Default({ totalEntries = 25, totalWinners = 1, totalFreeSpins = 4 }: SpotlightStepsProps) {
   const steps = [
     {
       number: "01",
@@ -27,7 +28,7 @@ export function Default({ totalEntries = 25, totalWinners = 5 }: SpotlightStepsP
       number: "02",
       icon: Hash,
       title: "Your outcome locks",
-      body: `Payment assigns the next position in a pre-shuffled pool of ${totalWinners} wins and ${totalEntries - totalWinners} non-wins. No rerolls.`,
+      body: `Payment assigns the next position in a pre-shuffled pool of ${totalWinners} Regular ticket, ${totalFreeSpins} Free Spins and ${totalEntries - totalWinners - totalFreeSpins} No-Win positions. No rerolls.`,
       foot: "Committed before play",
       footIcon: ShieldCheck,
     },

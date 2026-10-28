@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  ENTRY_PRICE,
   GENESIS_HASH,
   MAX_ENTRIES_PER_PHONE,
   TOTAL_ENTRIES,
+  TOTAL_FREE_SPINS,
   TOTAL_WINNERS,
   campaignStats,
   computeCommitment,
@@ -34,9 +36,13 @@ test('normalizes Kenyan mobile numbers and rejects invalid numbers', () => {
 test('creates a fixed, committed outcome pool', () => {
   const state = createCampaign();
   assert.equal(TOTAL_ENTRIES, 25);
-  assert.equal(TOTAL_WINNERS, 5);
+  assert.equal(TOTAL_WINNERS, 1);
+  assert.equal(TOTAL_FREE_SPINS, 4);
   assert.equal(state.pool.length, TOTAL_ENTRIES);
   assert.equal(state.pool.filter((outcome) => outcome === 'win').length, TOTAL_WINNERS);
+  assert.equal(state.pool.filter((outcome) => outcome === 'free-spin').length, TOTAL_FREE_SPINS);
+  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length, 20);
+  assert.notEqual(state.pool[state.pool.length - 1], 'free-spin');
   assert.match(state.commitment, /^[a-f0-9]{64}$/);
   assert.equal(computeCommitment(state), state.commitment);
   const first = state.pool[0];
@@ -48,6 +54,7 @@ test('demo commitment timestamp predates every seeded entry', () => {
   const state = createCampaign({ seedDemo: true, seedCount: 8 });
   const firstEntry = Math.min(...state.entries.map((entry) => Date.parse(entry.createdAt)));
   assert.ok(Date.parse(state.createdAt) < firstEntry);
+  assert.ok(state.pool.slice(0, 8).every((outcome) => outcome === 'no-win'));
   assert.equal(computeCommitment(state), state.commitment);
 });
 
@@ -87,6 +94,8 @@ test('public data masks phones and never exposes the secret pool', () => {
 
 test('enforces the per-phone entry limit', () => {
   const state = createCampaign();
+  state.pool = Array(TOTAL_ENTRIES).fill('no-win');
+  state.commitment = computeCommitment(state);
   for (let index = 0; index < MAX_ENTRIES_PER_PHONE; index += 1) paidEntry(state);
   assert.throws(() => createPendingEntry(state, '0712345678'), /entry limit/);
 });
@@ -98,6 +107,10 @@ test('closes when all prizes are allocated and reveals only after paid spins com
     const phone = `2547${String(20000000 + index).padStart(8, '0')}`;
     const entry = paidEntry(state, phone);
     revealEntry(state, entry.id);
+    let readyBonus;
+    while ((readyBonus = state.entries.find((item) => item.paymentStatus === 'paid' && item.spinStatus === 'ready'))) {
+      revealEntry(state, readyBonus.id);
+    }
     index += 1;
     assert.ok(index <= TOTAL_ENTRIES, 'The fixed pool must close by the final entry.');
   }
@@ -105,4 +118,49 @@ test('closes when all prizes are allocated and reveals only after paid spins com
   assert.equal(stats.ticketsRemaining, 0);
   assert.equal(state.poolRevealed, true);
   assert.throws(() => createPendingEntry(state, '0712345678'), /closed/);
+});
+
+test('free-spin bonus entries can chain through consecutive committed positions', () => {
+  const state = createCampaign();
+  state.pool = ['free-spin', 'free-spin', 'free-spin', 'free-spin', ...Array(20).fill('no-win'), 'win'];
+  state.commitment = computeCommitment(state);
+  const parent = paidEntry(state);
+  const first = revealEntry(state, parent.id);
+  const secondEntry = state.entries.find((entry) => entry.id === first.freeSpinEntryId);
+  const second = revealEntry(state, secondEntry.id);
+  const thirdEntry = state.entries.find((entry) => entry.id === second.freeSpinEntryId);
+  assert.equal(second.outcome, 'free-spin');
+  assert.equal(thirdEntry.amount, 0);
+  assert.equal(thirdEntry.bonusOf, secondEntry.id);
+  assert.equal(thirdEntry.outcome, 'free-spin');
+  assert.equal(thirdEntry.entryNumber, 3);
+  assert.equal(state.entries.length, 3);
+});
+
+test('a free spin creates one idempotent KES 0 bonus entry from the same committed pool', () => {
+  const state = createCampaign();
+  state.pool = ['free-spin', 'no-win', ...Array(22).fill('no-win'), 'win'];
+  state.commitment = computeCommitment(state);
+  const parent = paidEntry(state);
+  const result = revealEntry(state, parent.id);
+  assert.equal(result.outcome, 'free-spin');
+  assert.ok(result.freeSpinEntryId);
+  assert.equal(state.entries.length, 2);
+  const bonus = state.entries[1];
+  assert.equal(bonus.amount, 0);
+  assert.equal(bonus.bonusOf, parent.id);
+  assert.equal(bonus.paymentMethod, 'Free spin');
+  assert.equal(bonus.paymentStatus, 'paid');
+  assert.equal(bonus.spinStatus, 'ready');
+  assert.equal(bonus.outcome, 'no-win');
+  assert.equal(bonus.entryNumber, 2);
+  assert.equal(playerEntry(bonus).outcome, null);
+  const repeated = revealEntry(state, parent.id);
+  assert.equal(repeated.freeSpinEntryId, bonus.id);
+  assert.equal(state.entries.length, 2);
+  assert.equal(paidEntry(state).amount, ENTRY_PRICE, 'a paid entry remains allowed after a bonus');
+  const bonusResult = revealEntry(state, bonus.id);
+  assert.equal(bonusResult.outcome, 'no-win');
+  assert.ok(bonusResult.resultHash);
+  assert.equal(state.ledgerLength, 2);
 });

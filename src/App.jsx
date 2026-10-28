@@ -9,7 +9,7 @@ import {
   Ticket,
   WalletCards,
 } from 'lucide-react';
-import Wheel from './Wheel.jsx';
+import Wheel, { targetRotationForOutcome } from './Wheel.jsx';
 import { FairnessModal, PaymentModal, ResultModal } from './Modals.jsx';
 import { api, scrollToSection, wait } from './lib.js';
 
@@ -58,6 +58,7 @@ export default function App() {
   const [fairnessOpen, setFairnessOpen] = useState(false);
   const [activeEntry, setActiveEntry] = useState(null);
   const [resultEntry, setResultEntry] = useState(null);
+  const [resultBonusEntry, setResultBonusEntry] = useState(null);
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [spinDuration, setSpinDuration] = useState(4200);
@@ -105,9 +106,18 @@ export default function App() {
   useEffect(() => {
     const savedId = sessionStorage.getItem('tiketi-active-entry');
     if (!savedId) return;
-    api(`/api/entries/${savedId}`).then(({ entry }) => {
-      if (entry.paymentStatus === 'paid' && entry.spinStatus === 'ready') setActiveEntry(entry);
-      else sessionStorage.removeItem('tiketi-active-entry');
+    api(`/api/entries/${savedId}`).then(async ({ entry }) => {
+      let restorable = entry;
+      let chainLength = 0;
+      while (restorable.spinStatus === 'completed' && restorable.freeSpinEntryId && chainLength < 25) {
+        const response = await api(`/api/entries/${restorable.freeSpinEntryId}`);
+        restorable = response.entry;
+        chainLength += 1;
+      }
+      if (restorable.paymentStatus === 'paid' && restorable.spinStatus === 'ready') {
+        setActiveEntry(restorable);
+        sessionStorage.setItem('tiketi-active-entry', restorable.id);
+      } else sessionStorage.removeItem('tiketi-active-entry');
     }).catch(() => sessionStorage.removeItem('tiketi-active-entry'));
   }, []);
 
@@ -140,8 +150,7 @@ export default function App() {
     setSpinDuration(duration);
     try {
       const response = await api(`/api/entries/${activeEntry.id}/spin`, { method: 'POST', body: '{}' });
-      const segment = response.entry.outcome === 'win' ? 0 : 1 + Math.floor(Math.random() * 4);
-      const targetModulo = (360 - (segment * 72 + 36) + 360) % 360;
+      const targetModulo = targetRotationForOutcome(response.entry.outcome);
       setRotation((current) => {
         const currentModulo = ((current % 360) + 360) % 360;
         const alignment = (targetModulo - currentModulo + 360) % 360;
@@ -149,9 +158,11 @@ export default function App() {
       });
       await wait(duration + 120);
       setCampaign(response.campaign);
-      setActiveEntry(response.entry);
+      setActiveEntry(response.bonusEntry || response.entry);
       setResultEntry(response.entry);
-      sessionStorage.removeItem('tiketi-active-entry');
+      setResultBonusEntry(response.bonusEntry || null);
+      if (response.bonusEntry) sessionStorage.setItem('tiketi-active-entry', response.bonusEntry.id);
+      else sessionStorage.removeItem('tiketi-active-entry');
     } catch (error) {
       showToast(error.message);
     } finally {
@@ -179,14 +190,14 @@ export default function App() {
         <div className="spin-title">
           <div className="drop-label"><span className={`live-dot ${campaign.status === 'closed' ? 'closed' : ''}`} /> DECEMBER 2026 <i /> NAIROBI</div>
           <h1><span>Detty<br className="mobile-title-break" /> Dezemba</span>Ticket spin.</h1>
-          <p>5 festival tickets · KES 500 per entry · 1 in 5 starting odds</p>
+          <p>1 Regular ticket · 4 Free Spins · KES 500 per paid entry</p>
         </div>
 
         <section className="focus-card" id="spin-card" aria-label="Detty Dezemba ticket spinning wheel">
           <div className="focus-glow" aria-hidden="true" />
           <div className="spin-card-top">
             <span><Music2 size={16} /> DETTY DEZEMBA · TICKET DROP</span>
-            <span className="tickets-pill"><Ticket size={14} /> {campaign.ticketsRemaining} / {campaign.totalWinners} left</span>
+            <span className="tickets-pill"><Ticket size={14} /> {campaign.ticketsRemaining} / {campaign.totalWinners} ticket left</span>
           </div>
 
           <Wheel
@@ -194,6 +205,7 @@ export default function App() {
             duration={spinDuration}
             spinning={spinning}
             canSpin={canSpin}
+            bonus={canSpin && activeEntry.amount === 0}
             closed={campaign.status === 'closed' && !canSpin}
             onSpin={handleSpin}
           />
@@ -202,19 +214,19 @@ export default function App() {
             {spinning ? (
               <><LoaderCircle size={16} className="spin-icon" /> Outcome locked. Revealing your receipt…</>
             ) : canSpin ? (
-              <><CheckCircle2 size={16} /> Paid entry {activeEntry.receipt} is ready to reveal.</>
+              <><CheckCircle2 size={16} /> {activeEntry.amount === 0 ? 'Free spin' : 'Paid entry'} {activeEntry.receipt} is ready{activeEntry.amount === 0 ? ' — no payment needed.' : ' to reveal.'}</>
             ) : (
-              <><WalletCards size={16} /> KES 500 per entry · Starting odds {campaign.startingOdds}</>
+              <><WalletCards size={16} /> KES 500 per paid entry · Ticket {campaign.ticketOdds} · Any reward {campaign.startingOdds}</>
             )}
           </div>
-          <p className="wheel-disclaimer">Five equal segments show the starting odds. The committed pool decides your outcome.</p>
+          <p className="wheel-disclaimer">Wheel areas match the starting pool: 4% Regular Ticket · 16% Free Spin · 80% No Win. The committed pool decides each outcome.</p>
 
           <div className="pool-progress">
             <div><span>Entry pool</span><strong>{campaign.entriesUsed} <i>/ {campaign.totalEntries}</i></strong></div>
             <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
             <div className="pool-progress-foot">
               <span>{campaign.entriesRemaining} positions left</span>
-              <span>{campaign.currentPool.winningEntries} wins in pool</span>
+              <span>{campaign.currentPool.winningEntries} ticket · {campaign.currentPool.freeSpinEntries} spins left</span>
             </div>
           </div>
 
@@ -225,7 +237,7 @@ export default function App() {
             disabled={spinning || (campaign.status === 'closed' && !canSpin)}
           >
             {spinning ? <LoaderCircle size={18} className="spin-icon" /> : <Ticket size={18} />}
-            {spinning ? 'Revealing your result…' : canSpin ? 'Spin my paid entry' : 'Pay KES 500 & spin'}
+            {spinning ? 'Revealing your result…' : canSpin ? (activeEntry.amount === 0 ? 'Use my free spin' : 'Spin my paid entry') : 'Pay KES 500 & spin'}
             {!spinning && <ArrowRight size={18} />}
           </button>
 
@@ -234,7 +246,7 @@ export default function App() {
           </div>
         </section>
 
-        <p className="focus-legal">18+ · No real money is accepted · Maximum {campaign.maxEntriesPerPhone} entries per number</p>
+        <p className="focus-legal">18+ · No real money is accepted · Maximum {campaign.maxEntriesPerPhone} paid entries per number</p>
         <a className="detty-photo-credit" href="https://dettydezemba.com/" target="_blank" rel="noreferrer">Event photos & festival inspiration: dettydezemba.com</a>
       </main>
 
@@ -249,7 +261,16 @@ export default function App() {
         <ResultModal
           entry={resultEntry}
           campaign={campaign}
-          onClose={() => setResultEntry(null)}
+          bonusEntry={resultBonusEntry}
+          onClose={() => {
+            setResultEntry(null);
+            setResultBonusEntry(null);
+          }}
+          onFreeSpin={() => {
+            setResultEntry(null);
+            setResultBonusEntry(null);
+            setTimeout(() => scrollToSection('spin-card'), 80);
+          }}
           onToast={showToast}
         />
       )}

@@ -3,8 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const CAMPAIGN_ID = 'detty-dezemba-dec-2026';
+export const POOL_SCHEMA = 'tiketi.pool.v2';
 export const TOTAL_ENTRIES = 25;
-export const TOTAL_WINNERS = 5;
+export const TOTAL_WINNERS = 1;
+export const TOTAL_FREE_SPINS = 4;
+export const TOTAL_REWARDS = TOTAL_WINNERS + TOTAL_FREE_SPINS;
 export const ENTRY_PRICE = 500;
 export const MAX_ENTRIES_PER_PHONE = 3;
 export const GENESIS_HASH = '0'.repeat(64);
@@ -40,12 +43,14 @@ function secureShuffle(items) {
 
 export function poolPayload(state) {
   return {
-    schema: 'tiketi.pool.v1',
+    schema: POOL_SCHEMA,
     campaignId: state.campaignId,
     currency: 'KES',
     entryPrice: ENTRY_PRICE,
     totalEntries: TOTAL_ENTRIES,
     totalWinners: TOTAL_WINNERS,
+    totalFreeSpins: TOTAL_FREE_SPINS,
+    totalRewards: TOTAL_REWARDS,
     outcomes: state.pool,
     salt: state.poolSalt,
   };
@@ -81,15 +86,23 @@ export function paidEntries(state) {
 export function campaignStats(state) {
   const paid = paidEntries(state);
   const allocatedWins = paid.filter((entry) => entry.outcome === 'win').length;
+  const allocatedFreeSpins = paid.filter((entry) => entry.outcome === 'free-spin').length;
   const entriesRemaining = TOTAL_ENTRIES - paid.length;
   const ticketsRemaining = TOTAL_WINNERS - allocatedWins;
+  const freeSpinsRemaining = TOTAL_FREE_SPINS - allocatedFreeSpins;
+  const rewardsRemaining = ticketsRemaining + freeSpinsRemaining;
   return {
     entriesUsed: paid.length,
     entriesRemaining,
     allocatedWins,
+    allocatedFreeSpins,
     ticketsRemaining,
+    freeSpinsRemaining,
+    rewardsRemaining,
     currentPool: {
       winningEntries: ticketsRemaining,
+      freeSpinEntries: freeSpinsRemaining,
+      rewardEntries: rewardsRemaining,
       entries: entriesRemaining,
     },
   };
@@ -112,11 +125,30 @@ export function refreshCampaignStatus(state) {
 export function createCampaign({ seedDemo = false, seedCount = 10 } = {}) {
   const pool = secureShuffle([
     ...Array(TOTAL_WINNERS).fill('win'),
-    ...Array(TOTAL_ENTRIES - TOTAL_WINNERS).fill('no-win'),
+    ...Array(TOTAL_FREE_SPINS).fill('free-spin'),
+    ...Array(TOTAL_ENTRIES - TOTAL_REWARDS).fill('no-win'),
   ]);
+
+  // Seeded demo entries are non-winning so the hosted preview starts open.
+  if (seedDemo) {
+    for (let index = 0; index < seedCount; index += 1) {
+      if (pool[index] === 'no-win') continue;
+      const swapIndex = pool.findIndex((outcome, candidate) => candidate >= seedCount && outcome === 'no-win');
+      [pool[index], pool[swapIndex]] = [pool[swapIndex], pool[index]];
+    }
+  }
+
+  // A free spin must always have a following position available for its bonus.
+  if (pool[pool.length - 1] === 'free-spin') {
+    const firstCandidate = seedDemo ? seedCount : 0;
+    const swapIndex = pool.findIndex((outcome, candidate) => candidate >= firstCandidate && outcome === 'no-win');
+    [pool[pool.length - 1], pool[swapIndex]] = [pool[swapIndex], pool[pool.length - 1]];
+  }
+
   const now = Date.now();
   const state = {
-    version: 1,
+    version: 2,
+    poolSchema: POOL_SCHEMA,
     campaignId: CAMPAIGN_ID,
     createdAt: new Date(now - (seedDemo ? (seedCount + 2) * 8 * 60_000 : 0)).toISOString(),
     pool,
@@ -157,19 +189,32 @@ export function saveCampaign(state, dataFile) {
 }
 
 export function loadOrCreateCampaign(dataFile, { demo = true } = {}) {
+  const createFresh = () => {
+    const fresh = createCampaign({ seedDemo: demo });
+    saveCampaign(fresh, dataFile);
+    return fresh;
+  };
+
   if (fs.existsSync(dataFile)) {
     const state = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
-    if (state.campaignId !== CAMPAIGN_ID || state.pool?.length !== TOTAL_ENTRIES) {
-      throw new Error('The saved campaign does not match this campaign configuration.');
+    const compatible = state.campaignId === CAMPAIGN_ID
+      && state.poolSchema === POOL_SCHEMA
+      && state.pool?.length === TOTAL_ENTRIES;
+    if (!compatible) {
+      if (!demo) {
+        throw new Error('The saved campaign uses an incompatible prize-pool schema. Use a new DATA_FILE or migrate it explicitly; live data was not changed.');
+      }
+      const archive = `${dataFile}.legacy-${Date.now()}`;
+      fs.renameSync(dataFile, archive);
+      console.warn(`Archived incompatible simulated campaign data at ${archive}; starting a fresh committed pool.`);
+      return createFresh();
     }
     if (computeCommitment(state) !== state.commitment) {
       throw new Error('Campaign commitment verification failed. Refusing to alter the outcome pool.');
     }
     return state;
   }
-  const state = createCampaign({ seedDemo: demo });
-  saveCampaign(state, dataFile);
-  return state;
+  return createFresh();
 }
 
 export function createPendingEntry(state, phone, createdAt = new Date().toISOString()) {
@@ -180,6 +225,7 @@ export function createPendingEntry(state, phone, createdAt = new Date().toISOStr
 
   const normalized = normalizePhone(phone);
   const activeForPhone = state.entries.filter((entry) => {
+    if (entry.bonusOf) return false;
     if (entry.phone !== normalized || entry.paymentStatus === 'failed') return false;
     if (entry.paymentStatus === 'paid') return true;
     return Date.now() - Date.parse(entry.createdAt) < 15 * 60_000;
@@ -198,6 +244,8 @@ export function createPendingEntry(state, phone, createdAt = new Date().toISOStr
     paymentReference: null,
     merchantRequestId: null,
     checkoutRequestId: null,
+    bonusOf: null,
+    freeSpinEntryId: null,
     failureReason: null,
     createdAt,
     paidAt: null,
@@ -241,6 +289,46 @@ export function markEntryPaid(state, entryId, { paidAt = new Date().toISOString(
   return entry;
 }
 
+function createFreeSpinEntry(state, parentEntry) {
+  const existing = state.entries.find((item) => item.bonusOf === parentEntry.id);
+  if (existing) {
+    parentEntry.freeSpinEntryId = existing.id;
+    return existing;
+  }
+
+  const position = paidEntries(state).length;
+  if (position >= TOTAL_ENTRIES) throw new Error('No pool position remains for this free spin.');
+  const now = new Date().toISOString();
+  const entry = {
+    id: crypto.randomUUID(),
+    phone: parentEntry.phone,
+    amount: 0,
+    currency: 'KES',
+    paymentStatus: 'paid',
+    paymentMethod: 'Free spin',
+    paymentReference: `BONUS-${parentEntry.receipt}`,
+    merchantRequestId: null,
+    checkoutRequestId: null,
+    bonusOf: parentEntry.id,
+    freeSpinEntryId: null,
+    failureReason: null,
+    createdAt: now,
+    paidAt: now,
+    entryNumber: position + 1,
+    receipt: `DD-${String(position + 1).padStart(4, '0')}`,
+    outcome: state.pool[position],
+    prize: null,
+    spinStatus: 'ready',
+    spunAt: null,
+    chainIndex: null,
+    previousHash: null,
+    resultHash: null,
+  };
+  parentEntry.freeSpinEntryId = entry.id;
+  state.entries.push(entry);
+  return entry;
+}
+
 export function revealEntry(state, entryId, spunAt = new Date().toISOString()) {
   const entry = state.entries.find((item) => item.id === entryId);
   if (!entry) throw new Error('Entry not found.');
@@ -250,14 +338,16 @@ export function revealEntry(state, entryId, spunAt = new Date().toISOString()) {
   entry.spinStatus = 'completed';
   entry.spunAt = spunAt;
   if (entry.outcome === 'win') {
-    const prizeNumber = state.pool.slice(0, entry.entryNumber).filter((outcome) => outcome === 'win').length;
-    entry.prize = `FESTIVAL TICKET ${String(prizeNumber).padStart(2, '0')}`;
+    entry.prize = 'REGULAR TICKET 01';
+  } else if (entry.outcome === 'free-spin') {
+    entry.prize = 'FREE SPIN';
   }
   entry.chainIndex = state.ledgerLength;
   entry.previousHash = state.ledgerHead;
   entry.resultHash = computeResultHash(entry);
   state.ledgerHead = entry.resultHash;
   state.ledgerLength += 1;
+  if (entry.outcome === 'free-spin') createFreeSpinEntry(state, entry);
   refreshCampaignStatus(state);
   return entry;
 }
@@ -281,6 +371,8 @@ export function playerEntry(entry) {
   const completed = entry.spinStatus === 'completed';
   return {
     id: entry.id,
+    bonusOf: entry.bonusOf || null,
+    freeSpinEntryId: entry.freeSpinEntryId || null,
     paymentStatus: entry.paymentStatus,
     paymentMethod: entry.paymentMethod,
     paymentReference: entry.paymentReference,
@@ -311,18 +403,23 @@ export function publicCampaign(state) {
   return {
     id: state.campaignId,
     title: 'Detty Dezemba Festival',
-    prize: '1 of 5 festival tickets',
+    prize: '1 Regular ticket + 4 Free Spins',
     entryPrice: ENTRY_PRICE,
     currency: 'KES',
     totalEntries: TOTAL_ENTRIES,
     totalWinners: TOTAL_WINNERS,
+    totalFreeSpins: TOTAL_FREE_SPINS,
+    totalRewards: TOTAL_REWARDS,
     maxEntriesPerPhone: MAX_ENTRIES_PER_PHONE,
     status: state.acceptingEntries ? 'open' : 'closed',
     entriesUsed: stats.entriesUsed,
     entriesRemaining: stats.entriesRemaining,
     ticketsRemaining: stats.ticketsRemaining,
+    freeSpinsRemaining: stats.freeSpinsRemaining,
+    rewardsRemaining: stats.rewardsRemaining,
     currentPool: stats.currentPool,
-    startingOdds: `1 in ${TOTAL_ENTRIES / TOTAL_WINNERS}`,
+    startingOdds: `1 in ${TOTAL_ENTRIES / TOTAL_REWARDS}`,
+    ticketOdds: `1 in ${TOTAL_ENTRIES / TOTAL_WINNERS}`,
     commitment: state.commitment,
     ledgerHead: state.ledgerHead,
     ledgerLength: state.ledgerLength,
@@ -334,7 +431,7 @@ export function publicCampaign(state) {
 }
 
 export function revealedPool(state) {
-  if (!state.poolRevealed) throw new Error('The outcome pool will be revealed after the drop closes and all paid spins are complete.');
+  if (!state.poolRevealed) throw new Error('The outcome pool will be revealed after the drop closes and all allocated spins, including Free Spins, are complete.');
   const payload = poolPayload(state);
   return {
     payload,

@@ -200,8 +200,13 @@ app.get('/api/entries/:entryId', (request, response) => {
 app.post('/api/entries/:entryId/spin', (request, response) => {
   try {
     const entry = revealEntry(state, request.params.entryId);
+    const bonusEntry = entry.freeSpinEntryId ? findEntry(entry.freeSpinEntryId) : null;
     saveCampaign(state, dataFile);
-    return response.json({ entry: playerEntry(entry), campaign: campaignResponse() });
+    return response.json({
+      entry: playerEntry(entry),
+      bonusEntry: bonusEntry ? playerEntry(bonusEntry) : null,
+      campaign: campaignResponse(),
+    });
   } catch (error) {
     return sendError(response, error);
   }
