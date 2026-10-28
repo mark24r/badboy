@@ -177,7 +177,7 @@ export default function App() {
       <main className="spin-main">
         <div className="spin-title">
           <div className="drop-label"><span className={`live-dot ${campaign.status === 'closed' ? 'closed' : ''}`} /> DECEMBER 2026 <i /> NAIROBI</div>
-          <h1><span>Detty Dezemba</span>Ticket spin.</h1>
+          <h1><span>Detty<br className="mobile-title-break" /> Dezemba</span>Ticket spin.</h1>
           <p>5 festival tickets · KES 500 per entry · 1 in 5 starting odds</p>
         </div>
 

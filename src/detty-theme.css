@@ -291,6 +291,10 @@ h3,
   background-clip: text;
 }
 
+.mobile-title-break {
+  display: none;
+}
+
 .spin-title p {
   color: #c1b7a5;
   font-size: 10px;
@@ -832,8 +836,13 @@ h3,
 }
 
 @media (max-width: 600px) {
+  .spin-app {
+    min-height: 100dvh;
+  }
+
   .spin-header {
-    height: 70px;
+    height: 64px;
+    padding-inline: 16px;
   }
 
   .detty-brand {
@@ -864,47 +873,192 @@ h3,
   }
 
   .spin-main {
-    width: min(100% - 24px, 520px);
-    padding-top: 26px;
+    width: min(100% - 20px, 520px);
+    padding-top: 22px;
+    padding-bottom: calc(22px + env(safe-area-inset-bottom));
+  }
+
+  .spin-title {
+    margin-bottom: 20px;
+  }
+
+  .spin-title .drop-label {
+    margin-bottom: 12px;
   }
 
   .spin-title h1 {
-    font-size: clamp(34px, 10.5vw, 43px);
+    margin-bottom: 12px;
+    font-size: clamp(42px, 12vw, 52px);
+  }
+
+  .mobile-title-break {
+    display: initial;
   }
 
   .spin-title p {
-    font-size: 9px;
+    font-size: 10px;
+    line-height: 1.55;
   }
 
   .detty-photo-backdrop img.active {
-    opacity: 0.29;
+    opacity: 0.42;
+  }
+
+  .detty-photo-shade {
+    background: linear-gradient(180deg, rgba(11, 9, 6, 0.26) 0%, rgba(11, 9, 6, 0.7) 48%, rgba(11, 9, 6, 0.97) 100%);
   }
 
   .focus-card {
-    border-radius: 5px;
+    padding: 16px 14px 13px;
+    border-radius: 10px;
+    background:
+      radial-gradient(circle at 50% 28%, rgba(213, 173, 67, 0.09), transparent 17rem),
+      rgba(11, 9, 6, 0.88);
+  }
+
+  .focus-card .spin-card-top {
+    margin-bottom: 12px;
+    font-size: 8px;
+    letter-spacing: 0.09em;
+  }
+
+  .focus-card .wheel-wrap {
+    width: min(275px, 76vw);
+    margin-top: 14px;
+    margin-bottom: 10px;
+  }
+
+  .wheel-pointer {
+    width: 28px;
+    height: 35px;
+  }
+
+  .wheel-hub {
+    width: 84px;
+    height: 84px;
+    border-width: 4px;
+  }
+
+  .wheel-hub > span {
+    font-size: 13px;
+  }
+
+  .wheel-hub .hub-enter {
+    font-size: 14px;
+  }
+
+  .wheel-hub .hub-price {
+    font-size: 9px;
+  }
+
+  .spin-status {
+    min-height: 26px;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .focus-card .wheel-disclaimer {
+    margin-bottom: 12px;
+    font-size: 10px;
+    line-height: 1.55;
+  }
+
+  .pool-progress {
+    padding-top: 14px;
+  }
+
+  .pool-progress > div:first-child {
+    font-size: 12px;
+  }
+
+  .pool-progress-foot {
+    font-size: 10px;
   }
 
   .focus-entry-button {
+    min-height: 58px;
+    font-size: 12px;
+    box-shadow: 0 12px 30px rgba(213, 173, 67, 0.12);
+  }
+
+  .focus-secondary-actions {
+    margin-top: 9px;
+  }
+
+  .focus-secondary-actions button {
+    min-height: 44px;
+    padding: 10px 12px;
     font-size: 11px;
   }
 
+  .focus-legal {
+    font-size: 9px;
+    line-height: 1.6;
+  }
+
+  .detty-photo-credit {
+    font-size: 8px;
+  }
+
   .modal-backdrop {
-    padding: 12px;
+    align-items: flex-end;
+    padding: 0;
   }
 
   .modal-card {
-    max-height: 94vh;
-    padding: 29px 20px 24px;
-    border-radius: 5px;
+    width: 100%;
+    max-height: 92dvh;
+    padding: 30px 20px calc(24px + env(safe-area-inset-bottom));
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 16px 16px 0 0;
   }
 
   .modal-card h2 {
     font-size: 27px;
   }
 
-  .modal-close {
-    top: 13px;
-    right: 13px;
+  .modal-close,
+  .result-modal > .modal-close {
+    top: 10px;
+    right: 12px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .checkout-steps > span {
+    font-size: 10px;
+  }
+
+  .field-label {
+    font-size: 12px;
+  }
+
+  .field-help {
+    font-size: 10px;
+    line-height: 1.5;
+  }
+
+  .phone-field {
+    height: 56px;
+  }
+
+  .phone-field input {
+    font-size: 16px;
+  }
+
+  .terms-check {
+    font-size: 11px;
+  }
+
+  .terms-check input {
+    width: 18px;
+    height: 18px;
+  }
+
+  .pin-warning {
+    font-size: 10px;
   }
 
   .result-actions {
@@ -912,12 +1066,15 @@ h3,
   }
 
   .result-actions .button {
+    min-height: 48px;
     flex: 1 1 auto;
   }
 
   .toast {
-    right: 16px;
-    bottom: 16px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: 12px;
+    max-width: none;
   }
 }
 
@@ -927,15 +1084,33 @@ h3,
   }
 
   .spin-title h1 {
-    font-size: 32px;
+    font-size: clamp(38px, 12vw, 44px);
   }
 
   .spin-demo-badge {
     display: none;
   }
 
+  .focus-card {
+    padding-inline: 12px;
+  }
+
   .focus-card .spin-card-top {
-    letter-spacing: 0.07em;
+    font-size: 7px;
+    letter-spacing: 0.06em;
+  }
+
+  .tickets-pill {
+    padding: 6px 7px;
+  }
+
+  .checkout-steps {
+    gap: 5px;
+    padding-inline: 10px;
+  }
+
+  .checkout-steps > span {
+    font-size: 9px;
   }
 }
 

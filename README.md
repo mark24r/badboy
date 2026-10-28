@@ -27,7 +27,7 @@ npm start         # serve the API and built frontend on PORT (default 3000)
 - Hash-chained result receipts with masked entrant data available from the fairness API
 - Locally verifiable SHA-256 result receipts
 - Downloadable receipts, commitment record, and post-close pool reveal
-- Responsive spin-only mobile layout with local visual assets
+- Phone-first spin layout with a stacked event headline, safe-area padding, large touch targets, and bottom-sheet dialogs
 - Compact payment, result, and fairness dialogs
 
 ## Spin-focused UI and shadcn structure
