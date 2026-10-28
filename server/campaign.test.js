@@ -15,6 +15,7 @@ import {
   createCampaign,
   createPendingEntry,
   markEntryPaid,
+  normalizeEmail,
   normalizePhone,
   playerEntry,
   publicCampaign,
@@ -33,6 +34,21 @@ test('normalizes Kenyan mobile numbers and rejects invalid numbers', () => {
   assert.equal(normalizePhone('0112 345 678'), '254112345678');
   assert.throws(() => normalizePhone('1234'));
   assert.throws(() => normalizePhone('+44 7123 456789'));
+});
+
+test('normalizes Paystack email and keeps customer payment details private', () => {
+  assert.equal(normalizeEmail(' User@Example.COM '), 'user@example.com');
+  assert.throws(() => normalizeEmail('not-an-email'), /valid email/);
+  const state = createCampaign();
+  const entry = createPendingEntry(state, '0712345678', undefined, {
+    email: 'user@example.com',
+    paymentMethod: 'Paystack M-Pesa',
+  });
+  entry.paystackReference = 'DD-private-reference';
+  const projected = playerEntry(entry);
+  assert.equal(projected.paymentMethod, 'Paystack M-Pesa');
+  assert.equal(projected.email, undefined);
+  assert.equal(projected.paystackReference, undefined);
 });
 
 test('creates a fixed, committed outcome pool', () => {

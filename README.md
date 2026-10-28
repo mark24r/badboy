@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-The app binds to `0.0.0.0:3000`. The default mode is `PAYMENTS_MODE=demo`: STK Push approval is simulated, no phone is charged, and the ledger starts with clearly demonstrative test entries.
+The app binds to `0.0.0.0:3000`. The default mode is `PAYMENTS_MODE=demo`: Paystack M-Pesa approval is simulated, no phone is charged, and the ledger starts with clearly demonstrative test entries.
 
 ```bash
 npm test          # fairness, payment-order and receipt tests
@@ -20,7 +20,7 @@ npm start         # serve the API and built frontend on PORT (default 3000)
 
 ## Experience included
 
-- M-Pesa phone checkout with Kenyan number validation
+- Paystack M-Pesa phone checkout with Kenyan number validation, server-side transaction verification, and signed webhooks
 - Server-confirmed payment state; the browser cannot mark an entry paid
 - Original-style seven-slot wheel with Regular Ticket, Free Spin and VIP Ticket separated by four distributed No Win slots
 - Ready-to-spin hub pulse, segment-synchronised pointer ticks, dramatic slowdown, and reduced-motion support
@@ -35,7 +35,7 @@ npm start         # serve the API and built frontend on PORT (default 3000)
 
 ## Spin-focused UI and shadcn structure
 
-The homepage is intentionally reduced to the spinning experience: the wheel, M-Pesa entry, ticket/entry counts, progress, and the entrant's own result reveal. Fairness opens in a compact dialog; there is no public Results screen. The optional `GlowCard` and step demo remain available but are not rendered in the spin-only interface.
+The homepage is intentionally reduced to the spinning experience: the wheel, Paystack M-Pesa entry, ticket/entry counts, progress, and the entrant's own result reveal. Fairness opens in a compact dialog; there is no public Results screen. The optional `GlowCard` and step demo remain available but are not rendered in the spin-only interface.
 
 Project paths:
 
@@ -83,28 +83,26 @@ npx vercel deploy --prod
 
 Vercel's filesystem is ephemeral, so the hosted demo stores its campaign in that function instance's temporary storage. Entries and results can reset between instances or deployments; this is suitable for a product demonstration, not a shared production campaign. The Vercel adapter refuses `PAYMENTS_MODE=live`. Use a conventional Node host for the existing local JSON mode, or replace the store with a production database and atomic transactions before enabling real payments.
 
-## Enable Safaricom Daraja
+## Paystack M-Pesa integration
 
-Copy `.env.example` to `.env` and configure:
+The server includes a Paystack [Charge API](https://paystack.com/docs/api/charge/) integration for Kenyan M-Pesa. Demo mode never calls Paystack and never charges a phone. Live mode collects the customer's email and M-Pesa number, sends **KES 500 as 50,000 currency subunits**, and attaches a unique entry reference and metadata to the charge.
+
+For a properly hosted live environment, copy `.env.example` to `.env` and configure:
 
 ```dotenv
 PAYMENTS_MODE=live
-MPESA_ENV=sandbox # change to production only after approval and testing
-MPESA_CONSUMER_KEY=...
-MPESA_CONSUMER_SECRET=...
-MPESA_SHORTCODE=...
-MPESA_PASSKEY=...
-MPESA_CALLBACK_URL=https://your-public-domain.example/api/payments/callback
-MPESA_TRANSACTION_TYPE=CustomerPayBillOnline
+PAYSTACK_SECRET_KEY=sk_live_...
 ```
 
-The server obtains its own OAuth token, starts an STK Push, matches the callback by `CheckoutRequestID`, and checks the amount and phone number before unlocking an entry. The callback endpoint is:
+Live mode deliberately requires an `sk_live_` secret; a test key cannot unlock a live entry. Never expose the secret to the React app or commit it to git. Configure this public HTTPS webhook in the Paystack dashboard:
 
 ```text
-POST /api/payments/callback
+POST /api/payments/paystack/webhook
 ```
 
-Use a public HTTPS URL reachable by Safaricom. Never expose Daraja secrets to the React app. The website never asks for an M-Pesa PIN; customers enter it only in the phone's official prompt.
+The webhook follows Paystack's [signed-webhook guidance](https://paystack.com/docs/payments/webhooks/): the raw request body is checked with HMAC-SHA512 before processing. Both webhook confirmation and throttled status checks independently call Paystack's transaction verification API. A spin unlocks only after the server confirms a live, successful mobile-money transaction with the exact entry reference, metadata, KES currency, and **50,000-subunit** amount. Mismatches go to manual review rather than receiving an entry.
+
+**Real charges remain disabled on the current Vercel demo.** Its filesystem is ephemeral, and the adapter refuses `PAYMENTS_MODE=live`. Do not enable live payments until the campaign store has been replaced with a persistent production database and atomic payment/entry transactions. The local JSON mode is suitable only for a conventional single-process Node host, not a multi-instance live deployment. The website never asks for an M-Pesa PIN; customers enter it only in the phone's official prompt.
 
 ## Important before a real launch
 
@@ -115,7 +113,7 @@ This is a functional reference implementation, not a claim of legal or productio
 - Complete an independent security review and fairness audit. Commitments and hash chains make changes detectable; they do not prove the operator's infrastructure is secure or legally compliant.
 - Publish operator identity, final event/prize details, eligibility, claim deadlines, cancellation/refund rules, a Kenya Data Protection Act-compliant privacy notice, and responsible-participation controls.
 - Remove demo seed entries before a real campaign and keep the outcome-pool secret in a properly secured secrets/data store.
-- Verify Daraja callback behaviour against Safaricom's current documentation and your shortcode type.
+- Verify Paystack M-Pesa charge, webhook, and transaction-verification behaviour against Paystack's current documentation and your account's Kenya mobile-money enablement.
 
 ## Main files
 
@@ -124,6 +122,7 @@ This is a functional reference implementation, not a claim of legal or productio
 - `src/Wheel.jsx` — responsive SVG wheel animation
 - `src/styles.css` — full responsive visual system
 - `server/campaign.js` — committed pool, payment ordering, receipts, and public projections
-- `server/daraja.js` — server-only Safaricom Daraja integration
-- `server/index.js` — API, callback handling, and app server
+- `server/paystack.js` — server-only Paystack charge, verification, and webhook-signature integration
+- `server/index.js` — API, Paystack webhook handling, and app server
 - `server/campaign.test.js` — core fairness and integrity tests
+- `server/paystack.test.js` — mocked Paystack request, validation, and signature tests

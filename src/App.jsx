@@ -242,7 +242,7 @@ export default function App() {
           </div>
         </section>
 
-        <p className="focus-legal">18+ · No real money is accepted · Maximum {campaign.maxEntriesPerPhone} paid entries per number</p>
+        <p className="focus-legal">18+ · {campaign.paymentMode === 'demo' ? 'Demo · No real money is accepted' : 'Live payment via Paystack'} · Maximum {campaign.maxEntriesPerPhone} paid entries per number</p>
         <a className="detty-photo-credit" href="https://dettydezemba.com/" target="_blank" rel="noreferrer">Event photos & festival inspiration: dettydezemba.com</a>
       </main>
 

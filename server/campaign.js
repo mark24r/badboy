@@ -27,6 +27,14 @@ export function normalizePhone(value) {
   return `254${national.slice(1)}`;
 }
 
+export function normalizeEmail(value) {
+  const email = String(value || '').trim().toLowerCase();
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Enter a valid email address for your Paystack receipt.');
+  }
+  return email;
+}
+
 export function maskPhone(phone) {
   const normalized = String(phone || '');
   if (normalized.length < 6) return 'Hidden number';
@@ -232,7 +240,7 @@ export function loadOrCreateCampaign(dataFile, { demo = true } = {}) {
   return createFresh();
 }
 
-export function createPendingEntry(state, phone, createdAt = new Date().toISOString()) {
+export function createPendingEntry(state, phone, createdAt = new Date().toISOString(), { email = null, paymentMethod = 'M-Pesa' } = {}) {
   refreshCampaignStatus(state);
   if (!state.acceptingEntries) {
     throw new Error('This drop is closed. All available entries or tickets have been allocated.');
@@ -252,13 +260,16 @@ export function createPendingEntry(state, phone, createdAt = new Date().toISOStr
   const entry = {
     id: crypto.randomUUID(),
     phone: normalized,
+    email,
     amount: ENTRY_PRICE,
     currency: 'KES',
     paymentStatus: 'pending',
-    paymentMethod: 'M-Pesa',
+    paymentMethod,
     paymentReference: null,
-    merchantRequestId: null,
-    checkoutRequestId: null,
+    paystackReference: null,
+    paystackTransactionId: null,
+    paystackStatus: null,
+    paystackPaidAt: null,
     bonusOf: null,
     freeSpinEntryId: null,
     failureReason: null,
@@ -278,7 +289,7 @@ export function createPendingEntry(state, phone, createdAt = new Date().toISOStr
   return entry;
 }
 
-export function markEntryPaid(state, entryId, { paidAt = new Date().toISOString(), mpesaReceipt = null } = {}) {
+export function markEntryPaid(state, entryId, { paidAt = new Date().toISOString(), mpesaReceipt = null, paymentReference = null } = {}) {
   const entry = state.entries.find((item) => item.id === entryId);
   if (!entry) throw new Error('Entry not found.');
   if (entry.paymentStatus === 'paid') return entry;
@@ -294,7 +305,7 @@ export function markEntryPaid(state, entryId, { paidAt = new Date().toISOString(
 
   entry.paymentStatus = 'paid';
   entry.paidAt = paidAt;
-  entry.paymentReference = mpesaReceipt;
+  entry.paymentReference = paymentReference || mpesaReceipt;
   entry.entryNumber = position + 1;
   entry.receipt = `DD-${String(entry.entryNumber).padStart(4, '0')}`;
   entry.outcome = state.pool[position];
@@ -317,13 +328,16 @@ function createFreeSpinEntry(state, parentEntry) {
   const entry = {
     id: crypto.randomUUID(),
     phone: parentEntry.phone,
+    email: parentEntry.email || null,
     amount: 0,
     currency: 'KES',
     paymentStatus: 'paid',
     paymentMethod: 'Free spin',
     paymentReference: `BONUS-${parentEntry.receipt}`,
-    merchantRequestId: null,
-    checkoutRequestId: null,
+    paystackReference: null,
+    paystackTransactionId: null,
+    paystackStatus: null,
+    paystackPaidAt: null,
     bonusOf: parentEntry.id,
     freeSpinEntryId: null,
     failureReason: null,

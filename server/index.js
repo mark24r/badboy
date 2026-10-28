@@ -7,6 +7,7 @@ import {
   createPendingEntry,
   loadOrCreateCampaign,
   markEntryPaid,
+  normalizeEmail,
   normalizePhone,
   playerEntry,
   publicCampaign,
@@ -14,7 +15,14 @@ import {
   revealedPool,
   saveCampaign,
 } from './campaign.js';
-import { darajaConfigured, initiateStkPush } from './daraja.js';
+import {
+  initiatePaystackMpesa,
+  isValidPaystackSignature,
+  paystackConfigured,
+  paystackReferenceForEntry,
+  validatePaystackTransaction,
+  verifyPaystackTransaction,
+} from './paystack.js';
 
 const moduleFile = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(moduleFile);
@@ -34,7 +42,12 @@ const state = loadOrCreateCampaign(dataFile, { demo: paymentMode === 'demo' });
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(express.json({ limit: '32kb' }));
+app.use(express.json({
+  limit: '32kb',
+  verify: (request, response, buffer) => {
+    request.rawBody = Buffer.from(buffer);
+  },
+}));
 app.use((request, response, next) => {
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -59,7 +72,8 @@ function campaignResponse() {
   return {
     ...publicCampaign(state),
     paymentMode,
-    livePaymentsConfigured: paymentMode === 'live' && darajaConfigured(),
+    paymentProvider: 'paystack',
+    livePaymentsConfigured: paymentMode === 'live' && paystackConfigured({ live: true }),
   };
 }
 
@@ -73,8 +87,46 @@ function sendError(response, error) {
   return response.status(status).json({ error: error.message || 'Something went wrong.' });
 }
 
+const paystackVerificationTimes = new Map();
+
+async function reconcilePaystackEntry(entry) {
+  if (entry.paymentStatus === 'paid') return entry;
+  const data = await verifyPaystackTransaction(entry.paystackReference);
+  entry.paystackStatus = data.status || null;
+  entry.paystackTransactionId = data.id ? String(data.id) : entry.paystackTransactionId;
+  entry.paystackPaidAt = data.paid_at || data.paidAt || entry.paystackPaidAt;
+
+  if (data.status !== 'success') {
+    if (entry.paymentStatus === 'pending' && ['failed', 'abandoned'].includes(data.status)) {
+      entry.paymentStatus = 'failed';
+      entry.failureReason = data.gateway_response || data.message || 'Paystack M-Pesa payment was not completed.';
+    }
+    return entry;
+  }
+
+  const validation = validatePaystackTransaction(data, entry, { amount: ENTRY_PRICE });
+  if (!validation.valid) {
+    entry.paymentStatus = 'review';
+    entry.paymentReference = data.reference;
+    entry.failureReason = `${validation.reason} Manual review is required before an entry is issued.`;
+    return entry;
+  }
+
+  try {
+    markEntryPaid(state, entry.id, {
+      paidAt: entry.paystackPaidAt || new Date().toISOString(),
+      paymentReference: data.reference,
+    });
+  } catch (error) {
+    entry.paymentStatus = 'review';
+    entry.paymentReference = data.reference;
+    entry.failureReason = 'Paystack confirmed this payment, but the entry needs refund or allocation review.';
+  }
+  return entry;
+}
+
 app.get('/api/health', (request, response) => {
-  response.json({ ok: true, mode: paymentMode, storage: isVercel ? 'ephemeral-demo' : 'local-json' });
+  response.json({ ok: true, mode: paymentMode, provider: 'paystack', storage: isVercel ? 'ephemeral-demo' : 'local-json' });
 });
 
 app.get('/api/campaign', (request, response) => {
@@ -107,73 +159,81 @@ app.post('/api/payments/initiate', paymentRateLimit, async (request, response) =
       throw new Error('Confirm that you are 18+ and accept the drop terms before entering.');
     }
     const phone = normalizePhone(request.body?.phone);
-    entry = createPendingEntry(state, phone);
 
     if (paymentMode === 'demo') {
+      entry = createPendingEntry(state, phone);
       saveCampaign(state, dataFile);
       return response.status(202).json({
         entry: playerEntry(entry),
         mode: 'demo',
-        message: 'Simulated STK Push created. No real payment will be taken.',
+        message: 'Simulated Paystack M-Pesa prompt created. No real payment will be taken.',
       });
     }
 
-    const stkResponse = await initiateStkPush({ phone, amount: ENTRY_PRICE, entryId: entry.id });
-    entry.merchantRequestId = stkResponse.MerchantRequestID;
-    entry.checkoutRequestId = stkResponse.CheckoutRequestID;
+    const email = normalizeEmail(request.body?.email);
+    if (!paystackConfigured({ live: true })) {
+      const error = new Error('Live Paystack payments are not configured on this server.');
+      error.status = 503;
+      throw error;
+    }
+
+    entry = createPendingEntry(state, phone, undefined, { email, paymentMethod: 'Paystack M-Pesa' });
+    entry.paystackReference = paystackReferenceForEntry(entry.id);
+    saveCampaign(state, dataFile);
+
+    const charge = await initiatePaystackMpesa({
+      phone,
+      email,
+      amount: ENTRY_PRICE,
+      entryId: entry.id,
+      campaignId: state.campaignId,
+      reference: entry.paystackReference,
+    });
+    entry.paystackStatus = charge.status || 'pending';
+    entry.paystackTransactionId = charge.id ? String(charge.id) : entry.paystackTransactionId;
     saveCampaign(state, dataFile);
     return response.status(202).json({
       entry: playerEntry(entry),
       mode: 'live',
-      message: stkResponse.CustomerMessage || 'Check your phone for the M-Pesa prompt.',
+      message: charge.display_text || 'Check your phone for the M-Pesa prompt from Paystack.',
     });
   } catch (error) {
     if (entry && entry.paymentStatus === 'pending') {
-      entry.paymentStatus = 'failed';
-      entry.failureReason = 'Could not initiate M-Pesa payment.';
+      entry.paymentStatus = error.ambiguous ? 'review' : 'failed';
+      entry.failureReason = error.ambiguous
+        ? 'Paystack could not confirm whether this charge started. Reconcile it before retrying.'
+        : 'Could not initiate Paystack M-Pesa payment.';
       saveCampaign(state, dataFile);
     }
     return sendError(response, error);
   }
 });
 
-app.post('/api/payments/callback', (request, response) => {
-  const callback = request.body?.Body?.stkCallback;
-  if (!callback?.CheckoutRequestID) {
-    return response.status(400).json({ ResultCode: 1, ResultDesc: 'Invalid callback' });
+app.post('/api/payments/paystack/webhook', async (request, response) => {
+  if (paymentMode !== 'live') {
+    return response.status(403).json({ error: 'Paystack webhooks are disabled in demo mode.' });
+  }
+  if (!isValidPaystackSignature(request.rawBody, request.get('x-paystack-signature'))) {
+    return response.status(401).json({ error: 'Invalid Paystack signature.' });
   }
 
-  const entry = state.entries.find((item) => item.checkoutRequestId === callback.CheckoutRequestID);
+  const event = request.body;
+  if (event?.event !== 'charge.success') return response.json({ received: true });
+  const reference = event.data?.reference;
+  const entry = state.entries.find((item) => item.paystackReference === reference);
   if (!entry) {
-    console.warn('Received an M-Pesa callback for an unknown CheckoutRequestID.');
-    return response.json({ ResultCode: 0, ResultDesc: 'Accepted' });
+    console.warn('Received a signed Paystack webhook for an unknown payment reference.');
+    return response.json({ received: true });
   }
 
   try {
-    if (callback.ResultCode !== 0) {
-      entry.paymentStatus = 'failed';
-      entry.failureReason = callback.ResultDesc || 'M-Pesa payment was not completed.';
-    } else if (entry.paymentStatus !== 'paid') {
-      const metadata = Object.fromEntries(
-        (callback.CallbackMetadata?.Item || []).map((item) => [item.Name, item.Value]),
-      );
-      const validAmount = Number(metadata.Amount) === ENTRY_PRICE;
-      const validPhone = normalizePhone(metadata.PhoneNumber) === entry.phone;
-      if (!validAmount || !validPhone || !metadata.MpesaReceiptNumber) {
-        entry.paymentStatus = 'review';
-        entry.failureReason = 'Payment details did not match this entry and need manual review.';
-      } else {
-        markEntryPaid(state, entry.id, { mpesaReceipt: metadata.MpesaReceiptNumber });
-      }
-    }
+    await reconcilePaystackEntry(entry);
     saveCampaign(state, dataFile);
+    return response.json({ received: true });
   } catch (error) {
-    entry.paymentStatus = 'review';
-    entry.failureReason = 'Payment needs manual review before a refund or entry is issued.';
-    saveCampaign(state, dataFile);
-    console.error(error.message);
+    console.error(`Paystack webhook verification failed: ${error.message}`);
+    return response.status(500).json({ error: 'Payment verification temporarily failed.' });
   }
-  return response.json({ ResultCode: 0, ResultDesc: 'Accepted' });
 });
 
 app.post('/api/demo/complete-payment', (request, response) => {
@@ -191,9 +251,22 @@ app.post('/api/demo/complete-payment', (request, response) => {
   }
 });
 
-app.get('/api/entries/:entryId', (request, response) => {
+app.get('/api/entries/:entryId', async (request, response) => {
   const entry = findEntry(request.params.entryId);
   if (!entry) return response.status(404).json({ error: 'Entry not found.' });
+
+  if (paymentMode === 'live' && entry.paymentStatus === 'pending' && entry.paystackReference) {
+    const lastCheck = paystackVerificationTimes.get(entry.id) || 0;
+    if (Date.now() - lastCheck >= 10_000) {
+      paystackVerificationTimes.set(entry.id, Date.now());
+      try {
+        await reconcilePaystackEntry(entry);
+        saveCampaign(state, dataFile);
+      } catch (error) {
+        console.error(`Paystack status check failed: ${error.message}`);
+      }
+    }
+  }
   return response.json({ entry: playerEntry(entry) });
 });
 
@@ -240,7 +313,7 @@ if (isDirectRun) {
   const port = Number(process.env.PORT || 3000);
   const server = app.listen(port, '0.0.0.0', () => {
     console.log(`Detty Dezemba is running on port ${port} in ${isProduction ? 'production' : 'development'} mode.`);
-    console.log(`Payments: ${paymentMode}${paymentMode === 'live' && !darajaConfigured() ? ' (Daraja configuration incomplete)' : ''}.`);
+    console.log(`Payments: ${paymentMode} via Paystack${paymentMode === 'live' && !paystackConfigured({ live: true }) ? ' (live Paystack configuration incomplete)' : ''}.`);
   });
 
   function shutdown() {

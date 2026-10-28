@@ -55,6 +55,7 @@ function MpesaMark() {
 export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) {
   const [step, setStep] = useState('form');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [accepted, setAccepted] = useState(false);
   const [entry, setEntry] = useState(null);
   const [error, setError] = useState('');
@@ -102,7 +103,7 @@ export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) 
           }
           await wait(1600);
         }
-        if (!cancelled) throw new Error('Still waiting for M-Pesa. If you completed payment, keep this page open and check again shortly.');
+        if (!cancelled) throw new Error('Still waiting for Paystack confirmation. If you completed payment, keep this page open and check again shortly.');
       } catch (paymentError) {
         if (!cancelled) {
           setError(paymentError.message);
@@ -126,7 +127,7 @@ export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) 
     try {
       const response = await api('/api/payments/initiate', {
         method: 'POST',
-        body: JSON.stringify({ phone, acceptedTerms: accepted }),
+        body: JSON.stringify({ phone, email: campaign.paymentMode === 'live' ? email : undefined, acceptedTerms: accepted }),
       });
       setEntry(response.entry);
       onEntry(response.entry);
@@ -142,7 +143,7 @@ export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) 
     <Modal onClose={onClose} label="Pay and enter the ticket drop" className="payment-modal">
       <div className="modal-kicker">
         <MpesaMark />
-        <span>ENTRY CHECKOUT</span>
+        <span>PAYSTACK · ENTRY CHECKOUT</span>
       </div>
       <div className="checkout-steps" aria-label="Checkout progress">
         <span className="active"><b>1</b> Pay</span>
@@ -155,7 +156,7 @@ export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) 
       {step === 'form' && (
         <form onSubmit={submitPayment}>
           <h2>One payment. One spin.</h2>
-          <p className="modal-intro">Enter your M-Pesa number. We’ll send a payment prompt directly to your phone.</p>
+          <p className="modal-intro">Enter your M-Pesa number{campaign.paymentMode === 'live' ? ' and email' : ''}. Paystack will send a payment prompt directly to your phone.</p>
 
           <div className="order-summary">
             <div className="order-icon"><Ticket size={22} /></div>
@@ -187,6 +188,25 @@ export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) 
             {campaign.paymentMode === 'demo' ? 'Use 712 345 678. No real payment is made.' : 'Use the Safaricom number you want to pay with.'}
           </p>
 
+          {campaign.paymentMode === 'live' && (
+            <>
+              <label className="field-label" htmlFor="paystack-email">Email for your Paystack receipt</label>
+              <div className="phone-field">
+                <input
+                  id="paystack-email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                />
+              </div>
+              <p className="field-help">Paystack requires an email address for the payment record.</p>
+            </>
+          )}
+
           <label className="terms-check">
             <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} required />
             <span>I confirm I’m 18+ and agree to the drop terms, including the limit of {campaign.maxEntriesPerPhone} paid entries per number.</span>
@@ -196,7 +216,7 @@ export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) 
 
           <button className="button button-primary button-full payment-button" type="submit" disabled={!accepted || submitting || campaign.status === 'closed'}>
             {submitting ? <LoaderCircle size={19} className="spin-icon" /> : <LockKeyhole size={18} />}
-            {submitting ? 'Starting secure payment…' : 'Pay KES 500 with M-Pesa'}
+            {submitting ? 'Starting secure payment…' : 'Pay KES 500 with Paystack'}
             {!submitting && <ArrowRight size={18} />}
           </button>
           <div className="pin-warning"><ShieldCheck size={15} /> Your M-Pesa PIN is only entered on your phone. Never type it here.</div>
@@ -209,12 +229,12 @@ export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) 
             <Phone size={30} />
             <span />
           </div>
-          <span className="eyebrow">{campaign.paymentMode === 'demo' ? 'SIMULATING STK PUSH' : 'STK PUSH SENT'}</span>
+          <span className="eyebrow">{campaign.paymentMode === 'demo' ? 'SIMULATING PAYSTACK' : 'PAYSTACK M-PESA PROMPT SENT'}</span>
           <h2>Check your phone</h2>
           <p>{campaign.paymentMode === 'demo'
-            ? 'We’re simulating a successful M-Pesa approval. You will not be charged.'
-            : `Approve the KES 500 prompt on ${entry.phone}. This usually takes a few seconds.`}</p>
-          <div className="waiting-line"><LoaderCircle size={18} className="spin-icon" /> Waiting for payment confirmation</div>
+            ? 'We’re simulating a successful Paystack M-Pesa approval. You will not be charged.'
+            : `Approve the KES 500 prompt on ${entry.phone}. Paystack will confirm your payment.`}</p>
+          <div className="waiting-line"><LoaderCircle size={18} className="spin-icon" /> Waiting for Paystack confirmation</div>
           <div className="pin-warning"><ShieldCheck size={15} /> This website will never ask for your M-Pesa PIN.</div>
         </div>
       )}
@@ -234,6 +254,7 @@ export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) 
             setStep('form');
             setEntry(null);
             setPhone('');
+            setEmail('');
             setAccepted(false);
           }}>
             Spin now <ArrowRight size={18} />
@@ -410,7 +431,7 @@ const legalContent = {
     eyebrow: 'DROP RULES',
     title: 'Plain-language terms.',
     sections: [
-      ['Entry', 'This demonstration charges no money. For an approved live drop, each confirmed KES 500 M-Pesa payment receives one paid entry and one outcome reveal. Entrants must be 18 or older, with a maximum of three paid entries per phone number. Free Spins create KES 0 bonus entries and do not use another paid-entry slot.'],
+      ['Entry', 'This demonstration charges no money. For an approved live drop, each confirmed KES 500 Paystack M-Pesa payment receives one paid entry and one outcome reveal. Entrants must be 18 or older, with a maximum of three paid entries per phone number. Free Spins create KES 0 bonus entries and do not use another paid-entry slot.'],
       ['Prizes and results', 'There is exactly one Regular Detty Dezemba Festival ticket, one VIP ticket and four Free Spins in a fixed pool of 120 positions, alongside 114 No-Win positions. Starting odds are 1 in 120 for each ticket type, 1 in 60 for any ticket, and 1 in 20 for any reward. A winning receipt shows the prize reference. Winners must be reachable on their payment number and complete reasonable identity and eligibility checks before fulfilment.'],
       ['Refunds and cancellation', 'A revealed, valid entry is not refundable simply because it did not win. If the operator cancels the drop, affected paid entrants should receive a refund to the original payment number. Final launch terms must be reviewed by qualified Kenyan counsel.'],
     ],
@@ -419,7 +440,7 @@ const legalContent = {
     eyebrow: 'PRIVACY',
     title: 'Your number is not the show.',
     sections: [
-      ['What is collected', 'A live service needs your phone number, payment reference, entry position and result to process payment, contact winners and prevent duplicate or fraudulent claims. This preview stores only test data.'],
+      ['What is collected', 'A live service needs your phone number, email address for the Paystack receipt, payment reference, entry position and result to process payment, contact winners and prevent duplicate or fraudulent claims. This preview stores only test data.'],
       ['What is public', 'The public ledger displays a masked phone number, receipt, entry position, outcome and cryptographic proof. It never displays your full phone number or M-Pesa PIN.'],
       ['Production obligations', 'Before launch, the operator should publish a complete privacy notice, define retention periods, secure the production database and comply with applicable Kenyan data-protection requirements.'],
     ],

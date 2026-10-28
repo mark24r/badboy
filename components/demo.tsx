@@ -21,7 +21,7 @@ export function Default({ totalEntries = 120, totalWinners = 2, totalVipTickets 
       number: "01",
       icon: WalletCards,
       title: "Pay with M-Pesa",
-      body: "Enter your Safaricom number and approve the KES 500 STK Push on your phone. Your PIN stays private.",
+      body: "Enter your Safaricom number and approve the KES 500 Paystack M-Pesa prompt on your phone. Your PIN stays private.",
       foot: "Server-confirmed payment",
       footIcon: LockKeyhole,
     },
