@@ -6,12 +6,13 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
-const secret = 'sk_test_shared_router_secret';
+const secret = 'sk_live_shared_router_secret_for_tests';
 const dataFile = path.join(os.tmpdir(), `detty-router-${process.pid}-${Date.now()}.json`);
 process.env.DATA_FILE = dataFile;
 process.env.PAYMENTS_MODE = 'demo';
 process.env.PAYSTACK_SECRET_KEY = secret;
 process.env.PAYSTACK_WEBHOOK_FORWARD_URL = 'https://existing-project.example/api/paystack';
+process.env.CRON_SECRET = 'shared-router-test-cron-secret';
 process.env.NODE_ENV = 'production';
 delete process.env.VERCEL;
 
@@ -59,6 +60,15 @@ test('shared router preserves the existing receiver path without changing the de
   const forwarded = [];
   let receiverStatus = 200;
   globalThis.fetch = async (url, options) => {
+    if (String(url).startsWith('http://127.0.0.1:') && String(url).endsWith('/api/payments/paystack/router')) {
+      const result = await localRequest(server, {
+        method: 'POST',
+        route: '/api/payments/paystack/router',
+        body: options.body.toString(),
+        headers: { 'x-paystack-signature': options.headers['x-paystack-signature'] },
+      });
+      return new Response(JSON.stringify(result.body), { status: result.status });
+    }
     forwarded.push({ url, options });
     return new Response(null, { status: receiverStatus });
   };
@@ -67,7 +77,7 @@ test('shared router preserves the existing receiver path without changing the de
     const before = await localRequest(server, { route: '/api/campaign/ledger' });
     const health = await localRequest(server, { route: '/api/health' });
     assert.equal(health.body.webhookForwardingConfigured, true);
-    assert.equal(health.body.paystackLiveKeyConfigured, false);
+    assert.equal(health.body.paystackLiveKeyConfigured, true);
     const rawBody = '{"event":"charge.success","data":{"reference":"DD-other-project"}}';
     const signature = signedBody(rawBody);
     const forwardedResponse = await localRequest(server, {
@@ -109,6 +119,20 @@ test('shared router preserves the existing receiver path without changing the de
     });
     assert.equal(failedForward.status, 502);
     assert.equal(forwarded.length, 2);
+
+    receiverStatus = 200;
+    const selfTest = await localRequest(server, {
+      method: 'POST',
+      route: '/api/cron/router-self-test',
+      headers: { Authorization: 'Bearer shared-router-test-cron-secret' },
+    });
+    assert.equal(selfTest.status, 200);
+    assert.deepEqual(selfTest.body, { ok: true, routerStatus: 200, event: 'detty.router.self_test' });
+    assert.equal(forwarded.length, 3);
+    const selfTestPayload = JSON.parse(forwarded[2].options.body.toString());
+    assert.equal(selfTestPayload.event, 'detty.router.self_test');
+    assert.equal(selfTestPayload.data.reference, undefined);
+    assert.equal(selfTestPayload.data.customer, undefined);
 
     const after = await localRequest(server, { route: '/api/campaign/ledger' });
     assert.equal(after.body.commitment, before.body.commitment);

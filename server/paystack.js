@@ -105,9 +105,13 @@ export function validatePaystackTransaction(data, entry, { amount = 500 } = {}) 
   return { valid: true };
 }
 
+export function paystackSignature(rawBody, secretKey = process.env.PAYSTACK_SECRET_KEY) {
+  return crypto.createHmac('sha512', secretKey).update(rawBody).digest('hex');
+}
+
 export function isValidPaystackSignature(rawBody, signature, secretKey = process.env.PAYSTACK_SECRET_KEY) {
   if (!rawBody || !signature || !secretKey) return false;
-  const expected = crypto.createHmac('sha512', secretKey).update(rawBody).digest('hex');
+  const expected = paystackSignature(rawBody, secretKey);
   const expectedBytes = Buffer.from(expected, 'utf8');
   const providedBytes = Buffer.from(String(signature), 'utf8');
   return expectedBytes.length === providedBytes.length && crypto.timingSafeEqual(expectedBytes, providedBytes);

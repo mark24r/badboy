@@ -19,6 +19,7 @@ import {
   isValidPaystackSignature,
   paystackConfigured,
   paystackReferenceForEntry,
+  paystackSignature,
   verifyPaystackTransaction,
 } from './paystack.js';
 import {
@@ -121,6 +122,42 @@ app.get('/api/cron/reconcile', asyncRoute(async (request, response) => {
     return response.status(503).json({ error: 'Live reconciliation requires Postgres and a live Paystack key.' });
   }
   return response.json(await reconcilePayments({ store }));
+}));
+
+app.post('/api/cron/router-self-test', asyncRoute(async (request, response) => {
+  if (!isValidCronAuthorization(request.get('authorization'))) {
+    return response.status(401).json({ error: 'Unauthorized router test request.' });
+  }
+  if (paymentMode !== 'demo') {
+    return response.status(403).json({ error: 'The non-payment router self-test is available only in demo mode.' });
+  }
+  if (!paystackConfigured({ live: true }) || !process.env.PAYSTACK_WEBHOOK_FORWARD_URL) {
+    return response.status(503).json({ error: 'Shared router self-test requires a live key and forwarding destination.' });
+  }
+
+  const rawBody = Buffer.from(JSON.stringify({
+    event: 'detty.router.self_test',
+    data: { testedAt: new Date().toISOString() },
+  }));
+  const signature = paystackSignature(rawBody);
+  const target = `${request.protocol}://${request.get('host')}/api/payments/paystack/router`;
+  let testResponse;
+  try {
+    testResponse = await fetch(target, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-paystack-signature': signature },
+      body: rawBody,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (error) {
+    return response.status(502).json({ error: 'Could not reach the shared router for its self-test.' });
+  }
+  return response.status(testResponse.ok ? 200 : 502).json({
+    ok: testResponse.ok,
+    routerStatus: testResponse.status,
+    event: 'detty.router.self_test',
+  });
 }));
 
 app.get('/api/campaign', asyncRoute(async (request, response) => {
@@ -268,6 +305,7 @@ app.post('/api/payments/paystack/router', asyncRoute(async (request, response) =
       error: 'The existing webhook receiver could not be confirmed. Paystack will retry.',
     });
   }
+  console.log(`Shared Paystack router accepted ${request.body?.event || 'unknown event'}; forwarded=${Boolean(forwardUrl)}; dettyProcessing=${paymentMode === 'live'}.`);
   return response.json({ received: true, forwarded: Boolean(forwardUrl) });
 }));
 
