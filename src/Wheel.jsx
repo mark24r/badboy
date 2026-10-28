@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { LoaderCircle, LockKeyhole, Sparkles } from 'lucide-react';
 
 const SEGMENTS = 5;
@@ -17,17 +18,77 @@ function segmentPath(index) {
   return `M 160 160 L ${start.x} ${start.y} A 145 145 0 0 1 ${end.x} ${end.y} Z`;
 }
 
+function easeSpin(progress) {
+  return progress < 0.5
+    ? 4 * Math.pow(progress, 3)
+    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+}
+
 export default function Wheel({ rotation, duration, spinning, canSpin, closed, onSpin }) {
+  const rotorRef = useRef(null);
+  const pointerRef = useRef(null);
+  const currentRotation = useRef(rotation);
+
+  useEffect(() => {
+    const rotor = rotorRef.current;
+    const pointer = pointerRef.current;
+    if (!rotor) return undefined;
+
+    let frame = 0;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const finish = () => {
+      currentRotation.current = rotation;
+      rotor.style.transform = `rotate(${rotation}deg)`;
+      if (pointer) pointer.style.transform = 'translateX(-50%) rotate(0deg)';
+    };
+
+    if (!spinning || currentRotation.current === rotation || duration <= 0) {
+      finish();
+      return undefined;
+    }
+
+    const from = currentRotation.current;
+    const distance = rotation - from;
+    const startedAt = performance.now();
+    let previousSegment = Math.floor(from / SEGMENT_ANGLE);
+    let pointerKick = 0;
+
+    const animate = (now) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const nextRotation = from + distance * easeSpin(progress);
+      currentRotation.current = nextRotation;
+      rotor.style.transform = `rotate(${nextRotation}deg)`;
+
+      if (pointer && !reducedMotion) {
+        const segment = Math.floor(nextRotation / SEGMENT_ANGLE);
+        if (segment !== previousSegment) {
+          pointerKick = -Math.min(20, 10 + Math.abs(segment - previousSegment) * 2);
+          previousSegment = segment;
+        }
+        pointerKick *= 0.68;
+        if (Math.abs(pointerKick) < 0.15) pointerKick = 0;
+        pointer.style.transform = `translateX(-50%) rotate(${pointerKick}deg)`;
+      }
+
+      if (progress < 1) frame = requestAnimationFrame(animate);
+      else finish();
+    };
+
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [rotation, duration, spinning]);
+
   return (
     <div className={`wheel-wrap ${spinning ? 'is-spinning' : ''} ${canSpin && !spinning ? 'is-ready' : ''}`}>
-      <div className="wheel-pointer" aria-hidden="true">
+      <div className="wheel-pointer" ref={pointerRef} aria-hidden="true">
         <span />
       </div>
       <div
         className="wheel-rotor"
+        ref={rotorRef}
         style={{
           transform: `rotate(${rotation}deg)`,
-          transitionDuration: `${duration}ms`,
+          transition: 'none',
         }}
         aria-hidden="true"
       >

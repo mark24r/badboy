@@ -22,7 +22,8 @@ npm start         # serve the API and built frontend on PORT (default 3000)
 
 - M-Pesa phone checkout with Kenyan number validation
 - Server-confirmed payment state; the browser cannot mark an entry paid
-- Quick animated wheel reveal with reduced-motion support
+- Ready-to-spin hub pulse, segment-synchronised pointer ticks, dramatic slowdown, and reduced-motion support
+- Gold win flash, confetti, and a branded festival-ticket card with the winning receipt
 - Fixed ticket and entry counts, current unallocated pool, and starting odds
 - Hash-chained result receipts with masked entrant data available from the fairness API
 - Locally verifiable SHA-256 result receipts

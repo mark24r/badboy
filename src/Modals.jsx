@@ -285,12 +285,39 @@ export function ResultModal({ entry, campaign, onClose, onToast }) {
           : 'Your paid entry drew a non-winning outcome from the fixed pool. Your result is final and can be verified with its receipt.'}
       </p>
 
-      <div className="result-ticket">
-        <div><span>Entry</span><strong>#{String(entry.entryNumber).padStart(3, '0')}</strong></div>
-        <div><span>Result</span><strong className={won ? 'lime-text' : ''}>{won ? entry.prize : 'NO WIN'}</strong></div>
-        <div><span>Payment ref.</span><strong>{entry.paymentReference || 'Confirmed'}</strong></div>
-        <div><span>Receipt hash</span><strong>{shortHash(entry.resultHash, 10)}</strong></div>
-      </div>
+      {won ? (
+        <div className="festival-win-ticket" aria-label={`Winning festival ticket ${entry.receipt}`}>
+          <div className="festival-win-ticket-top">
+            <span className="festival-win-logos" aria-hidden="true">
+              <img src="/images/detty/kola-gold.webp" alt="" />
+              <i>×</i>
+              <img src="/images/detty/av-gold.webp" alt="" />
+            </span>
+            <span>WINNING TICKET</span>
+          </div>
+          <div className="festival-win-ticket-body">
+            <small>DECEMBER 2026 · NAIROBI</small>
+            <strong>DETTY DEZEMBA</strong>
+            <em>FESTIVAL</em>
+            <span>{entry.prize}</span>
+          </div>
+          <div className="festival-win-ticket-receipt">
+            <span>WINNING RECEIPT</span>
+            <strong>{entry.receipt}</strong>
+          </div>
+          <div className="festival-win-ticket-meta">
+            <span>ENTRY #{String(entry.entryNumber).padStart(3, '0')}</span>
+            <span>HASH {shortHash(entry.resultHash, 10)}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="result-ticket">
+          <div><span>Entry</span><strong>#{String(entry.entryNumber).padStart(3, '0')}</strong></div>
+          <div><span>Result</span><strong>NO WIN</strong></div>
+          <div><span>Payment ref.</span><strong>{entry.paymentReference || 'Confirmed'}</strong></div>
+          <div><span>Receipt hash</span><strong>{shortHash(entry.resultHash, 10)}</strong></div>
+        </div>
+      )}
 
       <div className="result-actions">
         <button className="button button-primary" type="button" onClick={saveReceipt}><Download size={17} /> Save receipt</button>
