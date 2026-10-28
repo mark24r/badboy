@@ -1,6 +1,6 @@
 # Detty Dezemba — transparent festival ticket spin
 
-A mobile-first React + Express website for a limited Detty Dezemba Festival ticket drop. The campaign offers **exactly 1 Regular Festival ticket, 4 Free Spins and 45 No-Win positions across a fixed pool of 50 positions**, at **KES 500 per paid entry**. Starting odds are **1 in 50 for the Regular ticket** and **1 in 10 for any reward**. The visual treatment uses the event's black, off-white and gold identity with original photos from dettydezemba.com.
+A mobile-first React + Express website for a limited Detty Dezemba Festival ticket drop. The campaign offers **exactly 1 Regular Festival ticket, 1 VIP ticket, 4 Free Spins and 54 No-Win positions across a fixed pool of 60 positions**, at **KES 500 per paid entry**. Starting odds are **1 in 60 for each ticket type**, **1 in 30 for any ticket**, and **1 in 10 for any reward**. The visual treatment uses the event's black, off-white and gold identity with original photos from dettydezemba.com.
 
 ## Run it
 
@@ -22,10 +22,10 @@ npm start         # serve the API and built frontend on PORT (default 3000)
 
 - M-Pesa phone checkout with Kenyan number validation
 - Server-confirmed payment state; the browser cannot mark an entry paid
-- Original-style six-slot wheel with one Ticket, four No Win, and one added Free Spin slot
+- Original-style seven-slot wheel with Regular Ticket, VIP Ticket between Free Spin and Regular, four No Win, and one Free Spin slot
 - Ready-to-spin hub pulse, segment-synchronised pointer ticks, dramatic slowdown, and reduced-motion support
 - Gold win flash, confetti, and a branded festival-ticket card with the winning receipt
-- Exactly one Regular ticket, four Free Spins, current unallocated pool, and starting odds
+- Exactly one Regular ticket, one VIP ticket, four Free Spins, current unallocated pool, and starting odds
 - KES 0 Free Spin bonus entries with their own receipts and hash-chained results; bonus entries do not count toward the three paid entries per phone
 - Hash-chained result receipts with masked entrant data available from the fairness API
 - Locally verifiable SHA-256 result receipts
@@ -61,16 +61,16 @@ The spotlight component itself needs no image assets, context providers, or addi
 
 ## Fairness model
 
-1. The server creates exactly one `win`, four `free-spin`, and 45 `no-win` outcomes. A Free Spin is never placed in the final pool position, so every Free Spin has a following position available.
+1. The server creates exactly one `win` (Regular), one `vip-win` (VIP), four `free-spin`, and 54 `no-win` outcomes. A Free Spin is never placed in the final pool position, so every Free Spin has a following position available.
 2. A Fisher–Yates shuffle uses Node's `crypto.randomInt`, and a random 256-bit salt is generated.
-3. Before demo entries are created or live entries are accepted, the app publishes `SHA-256(JSON.stringify(poolPayload))` as the commitment. The pool payload uses schema `tiketi.pool.v3` and includes the ticket/free-spin counts.
+3. Before demo entries are created or live entries are accepted, the app publishes `SHA-256(JSON.stringify(poolPayload))` as the commitment. The pool payload uses schema `tiketi.pool.v4` and includes the Regular/VIP ticket and Free Spin counts.
 4. Successful payments receive the next outcome in payment-confirmation order. The outcome is concealed from the player API until the spin is revealed.
 5. A revealed Free Spin creates one KES 0 bonus entry consuming the next concealed pool position. Bonus entries can chain, do not count toward the three paid entries per phone, and receive their own `DD-` receipt.
 6. Spin calls are idempotent: an entry can reveal only one result, and retrying returns the original receipt. Repeating a Free Spin reveal does not create a duplicate bonus entry.
 7. Each completed result, including a bonus result, contains the previous result hash. Any edited historical result breaks the subsequent chain.
 8. Once the drop closes and all allocated entries have revealed, the original pool and salt become available at `/api/campaign/reveal` for independent commitment verification. Incompatible saved pools use an explicit schema check; simulated data is archived before a fresh pool is created, while live-mode data is never automatically reset.
 
-The wheel preserves the original multi-slot presentation with **six illustrated slots**: one Ticket, four No Win, and one added Free Spin. Slot size is illustrative rather than a probability map; the committed 50-position pool determines the server-issued outcome. Starting odds remain **1 in 50 for the Regular ticket** and **1 in 10 for any reward**, and remaining odds change as pool positions are allocated.
+The wheel preserves the original multi-slot presentation with **seven illustrated slots**: Regular Ticket, four No Win, Free Spin, and VIP Ticket placed between Free Spin and Regular Ticket. Slot size is illustrative rather than a probability map; the committed 60-position pool determines the server-issued outcome. Starting odds are **1 in 60 for each ticket type**, **1 in 30 for any ticket**, and **1 in 10 for any reward**, and remaining odds change as pool positions are allocated.
 
 ## Deploy to Vercel (hosted demo)
 

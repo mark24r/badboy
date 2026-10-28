@@ -6,6 +6,8 @@ import {
   MAX_ENTRIES_PER_PHONE,
   TOTAL_ENTRIES,
   TOTAL_FREE_SPINS,
+  TOTAL_REGULAR_TICKETS,
+  TOTAL_VIP_TICKETS,
   TOTAL_WINNERS,
   campaignStats,
   computeCommitment,
@@ -35,13 +37,16 @@ test('normalizes Kenyan mobile numbers and rejects invalid numbers', () => {
 
 test('creates a fixed, committed outcome pool', () => {
   const state = createCampaign();
-  assert.equal(TOTAL_ENTRIES, 50);
-  assert.equal(TOTAL_WINNERS, 1);
+  assert.equal(TOTAL_ENTRIES, 60);
+  assert.equal(TOTAL_REGULAR_TICKETS, 1);
+  assert.equal(TOTAL_VIP_TICKETS, 1);
+  assert.equal(TOTAL_WINNERS, 2);
   assert.equal(TOTAL_FREE_SPINS, 4);
   assert.equal(state.pool.length, TOTAL_ENTRIES);
-  assert.equal(state.pool.filter((outcome) => outcome === 'win').length, TOTAL_WINNERS);
+  assert.equal(state.pool.filter((outcome) => outcome === 'win').length, TOTAL_REGULAR_TICKETS);
+  assert.equal(state.pool.filter((outcome) => outcome === 'vip-win').length, TOTAL_VIP_TICKETS);
   assert.equal(state.pool.filter((outcome) => outcome === 'free-spin').length, TOTAL_FREE_SPINS);
-  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length, 45);
+  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length, 54);
   assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length / TOTAL_ENTRIES, 0.9);
   assert.notEqual(state.pool[state.pool.length - 1], 'free-spin');
   assert.match(state.commitment, /^[a-f0-9]{64}$/);
@@ -49,6 +54,21 @@ test('creates a fixed, committed outcome pool', () => {
   const first = state.pool[0];
   state.pool[0] = first === 'win' ? 'no-win' : 'win';
   assert.notEqual(computeCommitment(state), state.commitment);
+});
+
+test('reveals Regular and VIP tickets with distinct prize references', () => {
+  const state = createCampaign();
+  state.pool = ['win', 'vip-win', ...Array(4).fill('free-spin'), ...Array(54).fill('no-win')];
+  state.commitment = computeCommitment(state);
+  const regular = paidEntry(state);
+  const regularResult = revealEntry(state, regular.id);
+  const vip = paidEntry(state);
+  const vipResult = revealEntry(state, vip.id);
+  assert.equal(regularResult.prize, 'REGULAR TICKET 01');
+  assert.equal(vipResult.prize, 'VIP TICKET 01');
+  assert.equal(campaignStats(state).regularTicketsRemaining, 0);
+  assert.equal(campaignStats(state).vipTicketsRemaining, 0);
+  assert.equal(campaignStats(state).ticketsRemaining, 0);
 });
 
 test('demo commitment timestamp predates every seeded entry', () => {
@@ -90,7 +110,9 @@ test('public data masks phones and never exposes the secret pool', () => {
   assert.equal('pool' in publicData, false);
   assert.equal('poolSalt' in publicData, false);
   assert.equal(publicData.startingOdds, '1 in 10');
-  assert.equal(publicData.ticketOdds, '1 in 50');
+  assert.equal(publicData.ticketOdds, '1 in 30');
+  assert.equal(publicData.regularTicketOdds, '1 in 60');
+  assert.equal(publicData.vipTicketOdds, '1 in 60');
   assert.equal(publicData.ledgerLength, 1);
 });
 
@@ -124,9 +146,9 @@ test('closes when all prizes are allocated and reveals only after paid spins com
 
 test('free-spin bonus entries can chain through consecutive committed positions', () => {
   const state = createCampaign();
-  state.pool = ['free-spin', 'free-spin', 'free-spin', 'free-spin', ...Array(45).fill('no-win'), 'win'];
+  state.pool = ['free-spin', 'free-spin', 'free-spin', 'free-spin', ...Array(54).fill('no-win'), 'win', 'vip-win'];
   assert.equal(state.pool.length, TOTAL_ENTRIES);
-  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length, 45);
+  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length, 54);
   state.commitment = computeCommitment(state);
   const parent = paidEntry(state);
   const first = revealEntry(state, parent.id);
@@ -143,10 +165,10 @@ test('free-spin bonus entries can chain through consecutive committed positions'
 
 test('a free spin creates one idempotent KES 0 bonus entry from the same committed pool', () => {
   const state = createCampaign();
-  state.pool = ['free-spin', 'no-win', ...Array(3).fill('free-spin'), ...Array(44).fill('no-win'), 'win'];
+  state.pool = ['free-spin', 'no-win', ...Array(3).fill('free-spin'), ...Array(53).fill('no-win'), 'win', 'vip-win'];
   assert.equal(state.pool.length, TOTAL_ENTRIES);
   assert.equal(state.pool.filter((outcome) => outcome === 'free-spin').length, TOTAL_FREE_SPINS);
-  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length, 45);
+  assert.equal(state.pool.filter((outcome) => outcome === 'no-win').length, 54);
   state.commitment = computeCommitment(state);
   const parent = paidEntry(state);
   const result = revealEntry(state, parent.id);

@@ -104,7 +104,7 @@ export default function App() {
     api(`/api/entries/${savedId}`).then(async ({ entry }) => {
       let restorable = entry;
       let chainLength = 0;
-      while (restorable.spinStatus === 'completed' && restorable.freeSpinEntryId && chainLength < 50) {
+      while (restorable.spinStatus === 'completed' && restorable.freeSpinEntryId && chainLength < 60) {
         const response = await api(`/api/entries/${restorable.freeSpinEntryId}`);
         restorable = response.entry;
         chainLength += 1;
@@ -186,14 +186,14 @@ export default function App() {
         <div className="spin-title">
           <div className="drop-label"><span className={`live-dot ${campaign.status === 'closed' ? 'closed' : ''}`} /> DECEMBER 2026 <i /> NAIROBI</div>
           <h1><span>Detty<br className="mobile-title-break" /> Dezemba</span>Ticket spin.</h1>
-          <p>1 Regular ticket · 4 Free Spins · KES 500 per paid entry</p>
+          <p>1 Regular ticket · 1 VIP ticket · 4 Free Spins · KES 500 per paid entry</p>
         </div>
 
         <section className="focus-card" id="spin-card" aria-label="Detty Dezemba ticket spinning wheel">
           <div className="focus-glow" aria-hidden="true" />
           <div className="spin-card-top">
             <span><Music2 size={16} /> DETTY DEZEMBA · TICKET DROP</span>
-            <span className="tickets-pill"><Ticket size={14} /> {campaign.ticketsRemaining} / {campaign.totalWinners} ticket left</span>
+            <span className="tickets-pill"><Ticket size={14} /> {campaign.ticketsRemaining} / {campaign.totalWinners} {campaign.ticketsRemaining === 1 ? 'ticket' : 'tickets'} left</span>
           </div>
 
           <Wheel
@@ -212,17 +212,17 @@ export default function App() {
             ) : canSpin ? (
               <><CheckCircle2 size={16} /> {activeEntry.amount === 0 ? 'Free spin' : 'Paid entry'} {activeEntry.receipt} is ready{activeEntry.amount === 0 ? ' — no payment needed.' : ' to reveal.'}</>
             ) : (
-              <><WalletCards size={16} /> KES 500 per paid entry · Ticket {campaign.ticketOdds} · Any reward {campaign.startingOdds}</>
+              <><WalletCards size={16} /> KES 500 per paid entry · Any ticket {campaign.ticketOdds} · Any reward {campaign.startingOdds}</>
             )}
           </div>
-          <p className="wheel-disclaimer">Six illustrated slots · Starting No Win {noWinPercentage}% · The committed {campaign.totalEntries}-position pool decides each outcome.</p>
+          <p className="wheel-disclaimer">Seven illustrated slots · Starting No Win {noWinPercentage}% · The committed {campaign.totalEntries}-position pool decides each outcome.</p>
 
           <div className="pool-progress">
             <div><span>Entry pool</span><strong>{campaign.entriesUsed} <i>/ {campaign.totalEntries}</i></strong></div>
             <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
             <div className="pool-progress-foot">
               <span>{campaign.entriesRemaining} positions left</span>
-              <span>{campaign.currentPool.winningEntries} ticket · {campaign.currentPool.freeSpinEntries} spins left</span>
+              <span>{campaign.currentPool.winningEntries} {campaign.currentPool.winningEntries === 1 ? 'ticket' : 'tickets'} · {campaign.currentPool.freeSpinEntries} spins left</span>
             </div>
           </div>
 

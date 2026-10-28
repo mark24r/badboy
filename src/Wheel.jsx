@@ -1,15 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { LoaderCircle, LockKeyhole, Sparkles } from 'lucide-react';
 
-// Keep the original wheel slots and add one Free Spin slot. The committed
-// 50-position pool, not the number of illustrated slots, decides each result.
+// Keep the original wheel slots, add Free Spin, and place VIP between Free Spin and Regular. The committed
+// 60-position pool, not the number of illustrated slots, decides each result.
 export const WHEEL_SEGMENTS = [
-  { outcome: 'win', label: 'TICKET' },
+  { outcome: 'win', label: 'REGULAR TICKET' },
   { outcome: 'no-win', label: 'NO WIN' },
   { outcome: 'no-win', label: 'NO WIN' },
   { outcome: 'no-win', label: 'NO WIN' },
   { outcome: 'no-win', label: 'NO WIN' },
   { outcome: 'free-spin', label: 'FREE SPIN' },
+  { outcome: 'vip-win', label: 'VIP TICKET' },
 ];
 const SEGMENT_ANGLE = 360 / WHEEL_SEGMENTS.length;
 
@@ -119,8 +120,9 @@ export default function Wheel({ rotation, duration, spinning, canSpin, bonus, cl
             const midpoint = -90 + index * SEGMENT_ANGLE + SEGMENT_ANGLE / 2;
             const label = point(101, midpoint);
             const isWinner = segment.outcome === 'win';
+            const isVip = segment.outcome === 'vip-win';
             const isFreeSpin = segment.outcome === 'free-spin';
-            const fill = isWinner ? '#d5ad43' : isFreeSpin ? '#e4bd54' : index % 2 === 0 ? '#f4ede0' : '#292116';
+            const fill = isWinner ? '#d5ad43' : isVip ? '#b08a3a' : isFreeSpin ? '#e4bd54' : index % 2 === 0 ? '#f4ede0' : '#292116';
             return (
               <g key={index} data-outcome={segment.outcome}>
                 <path d={segmentPath(index)} fill={fill} stroke="#0b0906" strokeWidth="1.2" />
@@ -130,10 +132,10 @@ export default function Wheel({ rotation, duration, spinning, canSpin, bonus, cl
                   textAnchor="middle"
                   dominantBaseline="middle"
                   transform={`rotate(${midpoint + 90} ${label.x} ${label.y})`}
-                  fill={isWinner || isFreeSpin || index % 2 === 0 ? '#0b0906' : '#f4ede0'}
-                  fontSize={isWinner ? '13' : isFreeSpin ? '10' : '9'}
+                  fill={isWinner || isVip || isFreeSpin || index % 2 === 0 ? '#0b0906' : '#f4ede0'}
+                  fontSize={isWinner || isVip ? '10' : isFreeSpin ? '10' : '9'}
                   fontWeight="900"
-                  letterSpacing={isWinner ? '1.5' : isFreeSpin ? '0.8' : '1'}
+                  letterSpacing={isWinner || isVip ? '0.5' : isFreeSpin ? '0.8' : '1'}
                   fontFamily="Inter, sans-serif"
                 >
                   {segment.label}
@@ -145,7 +147,7 @@ export default function Wheel({ rotation, duration, spinning, canSpin, bonus, cl
           <circle cx="160" cy="160" r="62" fill="#0b0906" stroke="#f4ede0" strokeWidth="3" />
           {WHEEL_SEGMENTS.map((segment, index) => {
             const dot = point(151, -90 + index * SEGMENT_ANGLE);
-            return <circle key={index} cx={dot.x} cy={dot.y} r="2.4" fill={segment.outcome === 'win' || segment.outcome === 'free-spin' ? '#d5ad43' : '#f4ede0'} />;
+            return <circle key={index} cx={dot.x} cy={dot.y} r="2.4" fill={segment.outcome === 'win' || segment.outcome === 'vip-win' || segment.outcome === 'free-spin' ? '#d5ad43' : '#f4ede0'} />;
           })}
         </svg>
       </div>

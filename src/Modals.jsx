@@ -248,7 +248,7 @@ export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) 
 export function ResultModal({ entry, campaign, bonusEntry, onFreeSpin, onClose, onToast }) {
   const [verified, setVerified] = useState(false);
   if (!entry) return null;
-  const won = entry.outcome === 'win';
+  const won = entry.outcome === 'win' || entry.outcome === 'vip-win';
   const freeSpin = entry.outcome === 'free-spin';
   const bonus = entry.amount === 0;
 
@@ -363,9 +363,11 @@ export function FairnessModal({ campaign, onClose, onToast }) {
       createdAt: campaign.createdAt,
       totalEntries: campaign.totalEntries,
       totalWinners: campaign.totalWinners,
+      totalRegularTickets: campaign.totalRegularTickets,
+      totalVipTickets: campaign.totalVipTickets,
       totalFreeSpins: campaign.totalFreeSpins,
       totalRewards: campaign.totalRewards,
-      algorithm: 'SHA-256 of JSON.stringify(tiketi.pool.v3 payload)',
+      algorithm: 'SHA-256 of JSON.stringify(tiketi.pool.v4 payload)',
       poolRevealed: campaign.poolRevealed,
     });
     onToast('Commitment record downloaded.');
@@ -383,12 +385,12 @@ export function FairnessModal({ campaign, onClose, onToast }) {
       <h2>What the hashes prove.</h2>
       <p className="modal-intro">The system publishes a fingerprint of the shuffled outcome pool before entries open. After the drop, the original pool and salt can be revealed against that fingerprint.</p>
       <ol className="verification-steps">
-        <li><b>01</b><div><strong>Pool committed</strong><p>Exactly {campaign.totalWinners} Regular Ticket, {campaign.totalFreeSpins} Free Spins and {campaign.totalEntries - campaign.totalRewards} No-Win positions are shuffled with Node’s cryptographic RNG. The salt and pool stay private while entries are open.</p></div></li>
+        <li><b>01</b><div><strong>Pool committed</strong><p>Exactly {campaign.totalRegularTickets} Regular Ticket, {campaign.totalVipTickets} VIP Ticket, {campaign.totalFreeSpins} Free Spins and {campaign.totalEntries - campaign.totalRewards} No-Win positions are shuffled with Node’s cryptographic RNG. The salt and pool stay private while entries are open.</p></div></li>
         <li><b>02</b><div><strong>Entries fix the position</strong><p>Paid entries and KES 0 bonus entries receive the next pool position in allocation order. A Free Spin creates its bonus entry for the following position without using another paid-entry slot. The browser cannot choose or reroll an outcome.</p></div></li>
         <li><b>03</b><div><strong>Results form a hash chain</strong><p>Each issued receipt includes the previous result’s hash. Changing an old result breaks the chain that follows it.</p></div></li>
         <li><b>04</b><div><strong>Pool revealed after close</strong><p>Anyone can then hash the revealed pool and compare it with the commitment published before play.</p></div></li>
       </ol>
-      <p className="modal-intro">The wheel keeps six illustrated slots, including one Free Spin slot. Slot size does not calculate the odds; the committed pool decides outcomes, and remaining odds change as positions are allocated.</p>
+      <p className="modal-intro">The wheel keeps seven illustrated slots, with VIP Ticket between Free Spin and Regular Ticket. Slot size does not calculate the odds; the committed pool decides outcomes, and remaining odds change as positions are allocated.</p>
       <div className="modal-hash-box">
         <span>POOL COMMITMENT · SHA-256</span>
         <code>{campaign.commitment}</code>
@@ -409,7 +411,7 @@ const legalContent = {
     title: 'Plain-language terms.',
     sections: [
       ['Entry', 'This demonstration charges no money. For an approved live drop, each confirmed KES 500 M-Pesa payment receives one paid entry and one outcome reveal. Entrants must be 18 or older, with a maximum of three paid entries per phone number. Free Spins create KES 0 bonus entries and do not use another paid-entry slot.'],
-      ['Prizes and results', 'There is exactly one Regular Detty Dezemba Festival ticket and four Free Spins in a fixed pool of 50 positions, alongside 45 No-Win positions. The starting odds are 1 in 50 for the ticket and 1 in 10 for any reward. A winning receipt shows the prize reference. The winner must be reachable on their payment number and complete reasonable identity and eligibility checks before fulfilment.'],
+      ['Prizes and results', 'There is exactly one Regular Detty Dezemba Festival ticket, one VIP ticket and four Free Spins in a fixed pool of 60 positions, alongside 54 No-Win positions. Starting odds are 1 in 60 for each ticket type, 1 in 30 for any ticket, and 1 in 10 for any reward. A winning receipt shows the prize reference. Winners must be reachable on their payment number and complete reasonable identity and eligibility checks before fulfilment.'],
       ['Refunds and cancellation', 'A revealed, valid entry is not refundable simply because it did not win. If the operator cancels the drop, affected paid entrants should receive a refund to the original payment number. Final launch terms must be reviewed by qualified Kenyan counsel.'],
     ],
   },

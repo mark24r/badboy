@@ -3,9 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const CAMPAIGN_ID = 'detty-dezemba-dec-2026';
-export const POOL_SCHEMA = 'tiketi.pool.v3';
-export const TOTAL_ENTRIES = 50;
-export const TOTAL_WINNERS = 1;
+export const POOL_SCHEMA = 'tiketi.pool.v4';
+export const TOTAL_ENTRIES = 60;
+export const TOTAL_REGULAR_TICKETS = 1;
+export const TOTAL_VIP_TICKETS = 1;
+export const TOTAL_WINNERS = TOTAL_REGULAR_TICKETS + TOTAL_VIP_TICKETS;
 export const TOTAL_FREE_SPINS = 4;
 export const TOTAL_REWARDS = TOTAL_WINNERS + TOTAL_FREE_SPINS;
 export const ENTRY_PRICE = 500;
@@ -49,6 +51,8 @@ export function poolPayload(state) {
     entryPrice: ENTRY_PRICE,
     totalEntries: TOTAL_ENTRIES,
     totalWinners: TOTAL_WINNERS,
+    totalRegularTickets: TOTAL_REGULAR_TICKETS,
+    totalVipTickets: TOTAL_VIP_TICKETS,
     totalFreeSpins: TOTAL_FREE_SPINS,
     totalRewards: TOTAL_REWARDS,
     outcomes: state.pool,
@@ -85,9 +89,13 @@ export function paidEntries(state) {
 
 export function campaignStats(state) {
   const paid = paidEntries(state);
-  const allocatedWins = paid.filter((entry) => entry.outcome === 'win').length;
+  const allocatedRegularTickets = paid.filter((entry) => entry.outcome === 'win').length;
+  const allocatedVipTickets = paid.filter((entry) => entry.outcome === 'vip-win').length;
+  const allocatedWins = allocatedRegularTickets + allocatedVipTickets;
   const allocatedFreeSpins = paid.filter((entry) => entry.outcome === 'free-spin').length;
   const entriesRemaining = TOTAL_ENTRIES - paid.length;
+  const regularTicketsRemaining = TOTAL_REGULAR_TICKETS - allocatedRegularTickets;
+  const vipTicketsRemaining = TOTAL_VIP_TICKETS - allocatedVipTickets;
   const ticketsRemaining = TOTAL_WINNERS - allocatedWins;
   const freeSpinsRemaining = TOTAL_FREE_SPINS - allocatedFreeSpins;
   const rewardsRemaining = ticketsRemaining + freeSpinsRemaining;
@@ -95,12 +103,18 @@ export function campaignStats(state) {
     entriesUsed: paid.length,
     entriesRemaining,
     allocatedWins,
+    allocatedRegularTickets,
+    allocatedVipTickets,
     allocatedFreeSpins,
     ticketsRemaining,
+    regularTicketsRemaining,
+    vipTicketsRemaining,
     freeSpinsRemaining,
     rewardsRemaining,
     currentPool: {
       winningEntries: ticketsRemaining,
+      regularTickets: regularTicketsRemaining,
+      vipTickets: vipTicketsRemaining,
       freeSpinEntries: freeSpinsRemaining,
       rewardEntries: rewardsRemaining,
       entries: entriesRemaining,
@@ -124,7 +138,8 @@ export function refreshCampaignStatus(state) {
 
 export function createCampaign({ seedDemo = false, seedCount = 10 } = {}) {
   const pool = secureShuffle([
-    ...Array(TOTAL_WINNERS).fill('win'),
+    ...Array(TOTAL_REGULAR_TICKETS).fill('win'),
+    ...Array(TOTAL_VIP_TICKETS).fill('vip-win'),
     ...Array(TOTAL_FREE_SPINS).fill('free-spin'),
     ...Array(TOTAL_ENTRIES - TOTAL_REWARDS).fill('no-win'),
   ]);
@@ -147,7 +162,7 @@ export function createCampaign({ seedDemo = false, seedCount = 10 } = {}) {
 
   const now = Date.now();
   const state = {
-    version: 3,
+    version: 4,
     poolSchema: POOL_SCHEMA,
     campaignId: CAMPAIGN_ID,
     createdAt: new Date(now - (seedDemo ? (seedCount + 2) * 8 * 60_000 : 0)).toISOString(),
@@ -339,6 +354,8 @@ export function revealEntry(state, entryId, spunAt = new Date().toISOString()) {
   entry.spunAt = spunAt;
   if (entry.outcome === 'win') {
     entry.prize = 'REGULAR TICKET 01';
+  } else if (entry.outcome === 'vip-win') {
+    entry.prize = 'VIP TICKET 01';
   } else if (entry.outcome === 'free-spin') {
     entry.prize = 'FREE SPIN';
   }
@@ -403,11 +420,13 @@ export function publicCampaign(state) {
   return {
     id: state.campaignId,
     title: 'Detty Dezemba Festival',
-    prize: '1 Regular ticket + 4 Free Spins',
+    prize: '1 Regular ticket + 1 VIP ticket + 4 Free Spins',
     entryPrice: ENTRY_PRICE,
     currency: 'KES',
     totalEntries: TOTAL_ENTRIES,
     totalWinners: TOTAL_WINNERS,
+    totalRegularTickets: TOTAL_REGULAR_TICKETS,
+    totalVipTickets: TOTAL_VIP_TICKETS,
     totalFreeSpins: TOTAL_FREE_SPINS,
     totalRewards: TOTAL_REWARDS,
     maxEntriesPerPhone: MAX_ENTRIES_PER_PHONE,
@@ -415,11 +434,15 @@ export function publicCampaign(state) {
     entriesUsed: stats.entriesUsed,
     entriesRemaining: stats.entriesRemaining,
     ticketsRemaining: stats.ticketsRemaining,
+    regularTicketsRemaining: stats.regularTicketsRemaining,
+    vipTicketsRemaining: stats.vipTicketsRemaining,
     freeSpinsRemaining: stats.freeSpinsRemaining,
     rewardsRemaining: stats.rewardsRemaining,
     currentPool: stats.currentPool,
     startingOdds: `1 in ${TOTAL_ENTRIES / TOTAL_REWARDS}`,
     ticketOdds: `1 in ${TOTAL_ENTRIES / TOTAL_WINNERS}`,
+    regularTicketOdds: `1 in ${TOTAL_ENTRIES / TOTAL_REGULAR_TICKETS}`,
+    vipTicketOdds: `1 in ${TOTAL_ENTRIES / TOTAL_VIP_TICKETS}`,
     commitment: state.commitment,
     ledgerHead: state.ledgerHead,
     ledgerLength: state.ledgerLength,
