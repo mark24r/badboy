@@ -83,6 +83,10 @@ npx vercel deploy --prod
 
 When `DATABASE_URL` or `POSTGRES_URL` is present, the app stores the campaign in Postgres. Every payment allocation and spin runs in a transaction with `SELECT ... FOR UPDATE`, so separate Vercel instances cannot allocate the same pool position. Demo and live campaigns use separate rows, which keeps simulated entries out of the live campaign and gives live mode a fresh commitment on first use. Without a database URL, local development uses the JSON store and Vercel demo mode falls back to ephemeral storage; Vercel live mode refuses to start without Postgres.
 
+## Private always-win demo on Render
+
+`render.yaml` defines a separate free Node web service for the invite-only always-win demo. It sets `PAYMENTS_MODE=demo` and `DEMO_ALWAYS_WIN=true`, so every spin awards a Regular or VIP demo ticket without Paystack, real charges, or real prizes. Set `ENTRY_ACCESS_CODE` when Render prompts for it. The service uses `/tmp/detty-private-always-win-demo.json`; on Render's free ephemeral filesystem, demo entries can reset after a restart or redeploy. This configuration is separate from the public Vercel production service.
+
 ## Paystack M-Pesa integration
 
 The server includes a Paystack [Charge API](https://paystack.com/docs/api/charge/) integration for Kenyan M-Pesa. Demo mode never calls Paystack and never charges a phone. Live mode collects the customer's email and M-Pesa number, defaults to **KES 500 as 50,000 currency subunits**, and attaches a unique entry reference and metadata to the charge. `ENTRY_PRICE_KES` can override the current checkout price in whole KES; for example, `50` sends exactly **5,000 subunits**. Changing it changes the price for every visitor to that deployment, so restore it to `500` after any approved temporary public test.

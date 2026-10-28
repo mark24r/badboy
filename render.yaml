@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: detty-private-always-win-demo
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: node server/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PAYMENTS_MODE
+        value: demo
+      - key: DEMO_ALWAYS_WIN
+        value: "true"
+      - key: ENTRY_PRICE_KES
+        value: "500"
+      - key: ENTRY_ACCESS_CODE
+        sync: false
+      - key: DATA_FILE
+        value: /tmp/detty-private-always-win-demo.json
