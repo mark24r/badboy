@@ -13,5 +13,11 @@
     "api/index.js": {
       "maxDuration": 30
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/reconcile",
+      "schedule": "0 1 * * *"
+    }
+  ]
 }

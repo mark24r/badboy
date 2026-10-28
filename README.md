@@ -93,6 +93,7 @@ For a properly hosted live environment, copy `.env.example` to `.env` and config
 PAYMENTS_MODE=live
 DATABASE_URL=postgresql://...
 PAYSTACK_SECRET_KEY=sk_live_...
+CRON_SECRET=generate-a-long-random-secret
 ```
 
 Live mode deliberately requires an `sk_live_` secret; a test key cannot unlock a live entry. Never expose the secret to the React app or commit it to git. Configure this public HTTPS webhook in the Paystack dashboard:
@@ -103,6 +104,8 @@ POST /api/payments/paystack/webhook
 
 The webhook follows Paystack's [signed-webhook guidance](https://paystack.com/docs/payments/webhooks/): the raw request body is checked with HMAC-SHA512 before processing. Both webhook confirmation and throttled status checks independently call Paystack's transaction verification API. A spin unlocks only after the server confirms a live, successful mobile-money transaction with the exact entry reference, metadata, KES currency, and **50,000-subunit** amount. Mismatches go to manual review rather than receiving an entry.
 
+`GET /api/cron/reconcile` provides an additional automatic fallback for pending or ambiguous payments. It requires `CRON_SECRET`, independently verifies each Paystack reference, applies updates inside the same transactional store, retries temporary verification failures, and leaves successful mismatches in manual review. Repetitions are idempotent and cannot allocate a second entry. `vercel.json` schedules it daily at 01:00 UTC (04:00 in Nairobi); Vercel Hobby permits only daily cron jobs and may run them up to an hour later. On Vercel Pro, the schedule can be increased to every five minutes. Webhooks and customer status checks remain the faster confirmation paths.
+
 Demo mode is the default and never calls Paystack. Live activation requires both persistent Postgres storage and a live server key; Vercel live mode still refuses to start if Postgres is missing. The local JSON mode is suitable only for a conventional single-process Node host, not a multi-instance live deployment. The website never asks for an M-Pesa PIN; customers enter it only in the phone's official prompt.
 
 ## Important before a real launch
@@ -110,7 +113,7 @@ Demo mode is the default and never calls Paystack. Live activation requires both
 This is a functional reference implementation, not a claim of legal or production certification.
 
 - Paid chance-based prize promotions in Kenya may require **Betting Control and Licensing Board (BCLB)** authorisation and other approvals. Obtain qualified Kenyan legal advice and all required approvals before accepting money.
-- The included Postgres store uses row-level locks for atomic payment/entry allocation. Before a real launch, add scheduled payment reconciliation, refund handling, monitoring, backups, durable rate limiting, and queue-based webhook processing.
+- The included Postgres store uses row-level locks for atomic payment/entry allocation, and the secured reconciler provides a daily automatic fallback. Before a real launch, add refund handling, external monitoring, backups, durable rate limiting, and queue-based webhook processing; consider a more frequent reconciliation schedule on Vercel Pro.
 - Complete an independent security review and fairness audit. Commitments and hash chains make changes detectable; they do not prove the operator's infrastructure is secure or legally compliant.
 - Publish operator identity, final event/prize details, eligibility, claim deadlines, cancellation/refund rules, a Kenya Data Protection Act-compliant privacy notice, and responsible-participation controls.
 - Keep demo entries out of the live campaign and protect the outcome pool and salt in the secured Postgres store. Demo and live rows are separate by default.
@@ -126,6 +129,8 @@ This is a functional reference implementation, not a claim of legal or productio
 - `server/paystack.js` — server-only Paystack charge, verification, and webhook-signature integration
 - `server/index.js` — API, Paystack webhook handling, and app server
 - `server/store.js` — Postgres persistence with row-level locking, plus the local JSON fallback
+- `server/reconciliation.js` — authenticated payment reconciliation, retry tracking, and manual-review safeguards
 - `server/campaign.test.js` — core fairness and integrity tests
 - `server/paystack.test.js` — mocked Paystack request, validation, and signature tests
+- `server/reconciliation.test.js` — reconciliation recovery, batching, authorization, and idempotency tests
 - `server/store.test.js` — storage rollback, persistence, and allocation tests

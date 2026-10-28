@@ -19,9 +19,13 @@ import {
   isValidPaystackSignature,
   paystackConfigured,
   paystackReferenceForEntry,
-  validatePaystackTransaction,
   verifyPaystackTransaction,
 } from './paystack.js';
+import {
+  applyPaystackTransaction,
+  isValidCronAuthorization,
+  reconcilePayments,
+} from './reconciliation.js';
 import { createCampaignStore, postgresConfigured } from './store.js';
 
 const moduleFile = fileURLToPath(import.meta.url);
@@ -93,44 +97,6 @@ function sendError(response, error) {
 
 const paystackVerificationTimes = new Map();
 
-function applyPaystackTransaction(state, entryId, data) {
-  const entry = findEntry(state, entryId);
-  if (!entry) throw new Error('Entry not found.');
-  if (entry.paymentStatus === 'paid') return entry;
-
-  entry.paystackStatus = data.status || null;
-  entry.paystackTransactionId = data.id ? String(data.id) : entry.paystackTransactionId;
-  entry.paystackPaidAt = data.paid_at || data.paidAt || entry.paystackPaidAt;
-
-  if (data.status !== 'success') {
-    if (entry.paymentStatus === 'pending' && ['failed', 'abandoned'].includes(data.status)) {
-      entry.paymentStatus = 'failed';
-      entry.failureReason = data.gateway_response || data.message || 'Paystack M-Pesa payment was not completed.';
-    }
-    return entry;
-  }
-
-  const validation = validatePaystackTransaction(data, entry, { amount: ENTRY_PRICE });
-  if (!validation.valid) {
-    entry.paymentStatus = 'review';
-    entry.paymentReference = data.reference;
-    entry.failureReason = `${validation.reason} Manual review is required before an entry is issued.`;
-    return entry;
-  }
-
-  try {
-    markEntryPaid(state, entry.id, {
-      paidAt: entry.paystackPaidAt || new Date().toISOString(),
-      paymentReference: data.reference,
-    });
-  } catch (error) {
-    entry.paymentStatus = 'review';
-    entry.paymentReference = data.reference;
-    entry.failureReason = 'Paystack confirmed this payment, but the entry needs refund or allocation review.';
-  }
-  return entry;
-}
-
 app.get('/api/health', (request, response) => {
   response.json({
     ok: true,
@@ -140,6 +106,19 @@ app.get('/api/health', (request, response) => {
     persistentStorage: store.persistent,
   });
 });
+
+app.get('/api/cron/reconcile', asyncRoute(async (request, response) => {
+  if (!isValidCronAuthorization(request.get('authorization'))) {
+    return response.status(401).json({ error: 'Unauthorized reconciliation request.' });
+  }
+  if (paymentMode !== 'live') {
+    return response.json({ ok: true, skipped: true, reason: 'demo-mode' });
+  }
+  if (!store.persistent || !paystackConfigured({ live: true })) {
+    return response.status(503).json({ error: 'Live reconciliation requires Postgres and a live Paystack key.' });
+  }
+  return response.json(await reconcilePayments({ store }));
+}));
 
 app.get('/api/campaign', asyncRoute(async (request, response) => {
   response.json(campaignResponse(await store.read()));
