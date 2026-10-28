@@ -24,15 +24,15 @@ npm start         # serve the API and built frontend on PORT (default 3000)
 - Server-confirmed payment state; the browser cannot mark an entry paid
 - Quick animated wheel reveal with reduced-motion support
 - Fixed ticket and entry counts, current unallocated pool, and starting odds
-- Masked public ledger with latest/winner filters
-- Locally verifiable SHA-256 result receipts and a hash-chained ledger
-- Downloadable receipts, public ledger, commitment record, and post-close pool reveal
-- Responsive spin-only mobile layout with no external visual assets
-- Compact payment, result, fairness, and public-ledger dialogs
+- Hash-chained result receipts with masked entrant data available from the fairness API
+- Locally verifiable SHA-256 result receipts
+- Downloadable receipts, commitment record, and post-close pool reveal
+- Responsive spin-only mobile layout with local visual assets
+- Compact payment, result, and fairness dialogs
 
 ## Spin-focused UI and shadcn structure
 
-The homepage is intentionally reduced to the spinning experience: the wheel, M-Pesa entry, ticket/entry counts, progress, and result reveal. Public results and fairness open in compact dialogs. The optional `GlowCard` and step demo remain available but are not rendered in the spin-only interface.
+The homepage is intentionally reduced to the spinning experience: the wheel, M-Pesa entry, ticket/entry counts, progress, and the entrant's own result reveal. Fairness opens in a compact dialog; there is no public Results screen. The optional `GlowCard` and step demo remain available but are not rendered in the spin-only interface.
 
 Project paths:
 
@@ -115,7 +115,7 @@ This is a functional reference implementation, not a claim of legal or productio
 
 ## Main files
 
-- `src/App.jsx` — page, entry flow, wheel interaction, and public ledger
+- `src/App.jsx` — page, entry flow, wheel interaction, and entrant result reveal
 - `src/Modals.jsx` — checkout, result, verification, and policy dialogs
 - `src/Wheel.jsx` — responsive SVG wheel animation
 - `src/styles.css` — full responsive visual system

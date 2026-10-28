@@ -3,7 +3,6 @@ import {
   ArrowRight,
   CheckCircle2,
   Info,
-  ListOrdered,
   LoaderCircle,
   Music2,
   ShieldCheck,
@@ -11,7 +10,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import Wheel from './Wheel.jsx';
-import { FairnessModal, PaymentModal, ResultModal, ResultsModal } from './Modals.jsx';
+import { FairnessModal, PaymentModal, ResultModal } from './Modals.jsx';
 import { api, scrollToSection, wait } from './lib.js';
 
 const eventPhotos = [
@@ -53,7 +52,6 @@ export default function App() {
   const [loadError, setLoadError] = useState('');
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [fairnessOpen, setFairnessOpen] = useState(false);
-  const [resultsOpen, setResultsOpen] = useState(false);
   const [activeEntry, setActiveEntry] = useState(null);
   const [resultEntry, setResultEntry] = useState(null);
   const [spinning, setSpinning] = useState(false);
@@ -113,7 +111,7 @@ export default function App() {
 
   const openEntry = () => {
     if (campaign?.status === 'closed') {
-      showToast('This drop is closed. Open the results to see all outcomes.');
+      showToast('This drop is closed. New entries are no longer available.');
       return;
     }
     if (canSpin) scrollToSection('spin-card');
@@ -173,7 +171,6 @@ export default function App() {
         <Logo />
         <div className="spin-header-actions">
           {campaign.paymentMode === 'demo' && <span className="spin-demo-badge">DEMO</span>}
-          <button type="button" onClick={() => setResultsOpen(true)}><ListOrdered size={16} /> Results</button>
         </div>
       </header>
 
@@ -232,7 +229,6 @@ export default function App() {
           </button>
 
           <div className="focus-secondary-actions">
-            <button type="button" onClick={() => setResultsOpen(true)}><ListOrdered size={15} /> Public results</button>
             <button type="button" onClick={() => setFairnessOpen(true)}><ShieldCheck size={15} /> How fairness works</button>
           </div>
         </section>
@@ -254,14 +250,9 @@ export default function App() {
           campaign={campaign}
           onClose={() => setResultEntry(null)}
           onToast={showToast}
-          onViewLedger={() => {
-            setResultEntry(null);
-            setResultsOpen(true);
-          }}
         />
       )}
       {fairnessOpen && <FairnessModal campaign={campaign} onClose={() => setFairnessOpen(false)} onToast={showToast} />}
-      {resultsOpen && <ResultsModal campaign={campaign} onClose={() => setResultsOpen(false)} onToast={showToast} />}
       {toast && <div className="toast" role="status" key={toast.id}><CheckCircle2 size={18} /> {toast.message}</div>}
     </div>
   );

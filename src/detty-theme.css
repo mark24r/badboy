@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('/fonts/inter-latin.woff2') format('woff2');
+}
+
 :root {
   --ink: #0b0906;
   --ink-2: #17130d;
@@ -19,8 +27,8 @@
   --detty-gold: #d5ad43;
   --detty-gold-bright: #e4bd54;
   --detty-muted: #aaa090;
-  --display: 'Inter Variable', Inter, sans-serif;
-  --body: 'Inter Variable', Inter, sans-serif;
+  --display: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 html {
@@ -270,14 +278,17 @@ h3,
   color: var(--detty-cream);
   font-size: clamp(39px, 5vw, 56px);
   font-weight: 900;
-  line-height: 0.9;
-  letter-spacing: -0.065em;
+  line-height: 0.86;
+  letter-spacing: -0.035em;
   text-transform: uppercase;
 }
 
 .spin-title h1 span {
   display: block;
-  color: var(--detty-gold);
+  color: transparent;
+  background: linear-gradient(180deg, #d9b45c 0%, #e0bd66 35%, #cda64e 60%, #b08a3a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
 }
 
 .spin-title p {

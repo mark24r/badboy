@@ -12,7 +12,6 @@ import {
   Phone,
   ShieldCheck,
   Ticket,
-  Trophy,
   X,
 } from 'lucide-react';
 import { api, copyText, downloadJson, shortHash, verifyReceipt, wait } from './lib.js';
@@ -245,7 +244,7 @@ export function PaymentModal({ open, onClose, campaign, onEntry, onSpinReady }) 
   );
 }
 
-export function ResultModal({ entry, campaign, onClose, onViewLedger, onToast }) {
+export function ResultModal({ entry, campaign, onClose, onToast }) {
   const [verified, setVerified] = useState(false);
   if (!entry) return null;
   const won = entry.outcome === 'win';
@@ -283,7 +282,7 @@ export function ResultModal({ entry, campaign, onClose, onViewLedger, onToast })
       <p className="result-lead">
         {won
           ? `You won ${entry.prize}. We’ll contact you on your payment number with claim instructions.`
-          : 'Your paid entry drew a non-winning outcome from the fixed pool. Your result is final and publicly verifiable.'}
+          : 'Your paid entry drew a non-winning outcome from the fixed pool. Your result is final and can be verified with its receipt.'}
       </p>
 
       <div className="result-ticket">
@@ -300,7 +299,6 @@ export function ResultModal({ entry, campaign, onClose, onViewLedger, onToast })
           {verified ? 'Verified' : 'Verify hash'}
         </button>
       </div>
-      <button className="text-button centered" type="button" onClick={onViewLedger}>View this result in the public ledger <ArrowRight size={15} /></button>
     </Modal>
   );
 }
@@ -339,7 +337,7 @@ export function FairnessModal({ campaign, onClose, onToast }) {
       <ol className="verification-steps">
         <li><b>01</b><div><strong>Pool committed</strong><p>Exactly {campaign.totalWinners} wins and {campaign.totalEntries - campaign.totalWinners} non-wins are shuffled with Node’s cryptographic RNG. The salt and pool stay private while entries are open.</p></div></li>
         <li><b>02</b><div><strong>Payment fixes the position</strong><p>Confirmed payments receive the next pool position in order. The browser only animates that outcome; it cannot choose or reroll it.</p></div></li>
-        <li><b>03</b><div><strong>Results form a hash chain</strong><p>Each public receipt includes the previous result’s hash. Changing an old result breaks the chain that follows it.</p></div></li>
+        <li><b>03</b><div><strong>Results form a hash chain</strong><p>Each issued receipt includes the previous result’s hash. Changing an old result breaks the chain that follows it.</p></div></li>
         <li><b>04</b><div><strong>Pool revealed after close</strong><p>Anyone can then hash the revealed pool and compare it with the commitment published before play.</p></div></li>
       </ol>
       <div className="modal-hash-box">
@@ -352,66 +350,6 @@ export function FairnessModal({ campaign, onClose, onToast }) {
         {campaign.poolRevealed && <button className="button button-primary" type="button" onClick={downloadReveal}><LockKeyhole size={16} /> Download reveal</button>}
       </div>
       {!campaign.poolRevealed && <p className="microcopy">Full pool reveal unlocks after the drop closes and every paid spin is complete.</p>}
-    </Modal>
-  );
-}
-
-export function ResultsModal({ campaign, onClose, onToast }) {
-  const [tab, setTab] = useState('latest');
-  const [visibleCount, setVisibleCount] = useState(7);
-  const [verified, setVerified] = useState({});
-  const entries = tab === 'winners'
-    ? campaign.ledger.filter((entry) => entry.outcome === 'win')
-    : campaign.ledger;
-  const winnerCount = campaign.ledger.filter((entry) => entry.outcome === 'win').length;
-
-  const downloadLedger = () => {
-    downloadJson('tiketi-public-ledger.json', {
-      schema: 'tiketi.public-ledger.v1',
-      campaignId: campaign.id,
-      commitment: campaign.commitment,
-      ledgerHead: campaign.ledgerHead,
-      ledgerLength: campaign.ledgerLength,
-      entries: [...campaign.ledger].reverse(),
-    });
-    onToast('Public ledger downloaded.');
-  };
-
-  const verifyEntry = async (entry) => {
-    const valid = await verifyReceipt(entry);
-    setVerified((current) => ({ ...current, [entry.receipt]: valid }));
-    onToast(valid ? `${entry.receipt} verified on this device.` : `${entry.receipt} could not be verified.`);
-  };
-
-  return (
-    <Modal onClose={onClose} label="Public spin results" className="public-results-modal">
-      <span className="eyebrow">PUBLIC LEDGER</span>
-      <h2>Every spin. On record.</h2>
-      <p className="modal-intro">Masked entrants, final outcomes, and receipts you can verify on your own device.</p>
-      <div className="results-modal-toolbar">
-        <div className="ledger-tabs" role="tablist" aria-label="Result filters">
-          <button type="button" role="tab" aria-selected={tab === 'latest'} className={tab === 'latest' ? 'active' : ''} onClick={() => { setTab('latest'); setVisibleCount(7); }}>Latest <span>{campaign.ledger.length}</span></button>
-          <button type="button" role="tab" aria-selected={tab === 'winners'} className={tab === 'winners' ? 'active' : ''} onClick={() => { setTab('winners'); setVisibleCount(7); }}>Winners <span>{winnerCount}</span></button>
-        </div>
-        <button className="button button-secondary" type="button" onClick={downloadLedger}><Download size={15} /> Download</button>
-      </div>
-
-      <div className="focus-result-list">
-        {entries.slice(0, visibleCount).map((entry) => (
-          <div className="focus-result-row" key={entry.receipt}>
-            <span className={`outcome-icon ${entry.outcome === 'win' ? 'winner' : ''}`}>{entry.outcome === 'win' ? <Trophy size={16} /> : <Hash size={15} />}</span>
-            <div className="focus-result-person"><strong>{entry.receipt}</strong><span>#{String(entry.entryNumber).padStart(3, '0')} · {entry.phone}</span></div>
-            <span className={`outcome-badge ${entry.outcome === 'win' ? 'winner' : ''}`}>{entry.outcome === 'win' ? entry.prize : 'NO WIN'}</span>
-            <button className={`verify-button ${verified[entry.receipt] ? 'verified' : ''}`} type="button" onClick={() => verifyEntry(entry)}>
-              {verified[entry.receipt] ? <CheckCircle2 size={15} /> : <FileCheck2 size={15} />}
-              {verified[entry.receipt] ? 'Valid' : 'Verify'}
-            </button>
-          </div>
-        ))}
-        {entries.length === 0 && <div className="empty-ledger"><Trophy size={26} /><strong>No revealed winners yet.</strong><span>Winning receipts will appear here.</span></div>}
-      </div>
-      {visibleCount < entries.length && <button className="show-more" type="button" onClick={() => setVisibleCount((count) => count + 8)}>Show more results</button>}
-      <div className="results-modal-foot"><LockKeyhole size={13} /> Ledger head: {shortHash(campaign.ledgerHead)}</div>
     </Modal>
   );
 }

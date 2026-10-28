@@ -52,7 +52,7 @@ export default function Wheel({ rotation, duration, spinning, canSpin, closed, o
                   fontSize={isWinner ? '13' : '9'}
                   fontWeight="900"
                   letterSpacing={isWinner ? '1.5' : '1'}
-                  fontFamily="Inter Variable, sans-serif"
+                  fontFamily="Inter, sans-serif"
                 >
                   {isWinner ? 'TICKET' : 'NO WIN'}
                 </text>
