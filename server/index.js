@@ -39,6 +39,7 @@ const dataFile = process.env.DATA_FILE || (isVercel
   ? path.join('/tmp', 'detty-dezemba-demo-campaign.json')
   : path.join(root, 'data', 'campaign.json'));
 const paymentMode = process.env.PAYMENTS_MODE === 'live' ? 'live' : 'demo';
+const entryAccessRequired = Boolean(process.env.ENTRY_ACCESS_CODE || process.env.LIVE_ENTRY_ACCESS_CODE);
 const isProduction = process.env.NODE_ENV === 'production' || isVercel;
 
 if (isVercel && paymentMode === 'live' && !postgresConfigured()) {
@@ -90,7 +91,7 @@ function campaignResponse(state) {
     paymentProvider: 'paystack',
     persistentStorage: store.persistent,
     livePaymentsConfigured: paymentMode === 'live' && store.persistent && paystackConfigured({ live: true }),
-    entryAccessRequired: paymentMode === 'live' && Boolean(process.env.LIVE_ENTRY_ACCESS_CODE),
+    entryAccessRequired,
   };
 }
 
@@ -116,7 +117,7 @@ app.get('/api/health', (request, response) => {
     paystackLiveKeyConfigured: paystackConfigured({ live: true }),
     webhookForwardingConfigured: Boolean(process.env.PAYSTACK_WEBHOOK_FORWARD_URL),
     isolatedCampaign: Boolean(process.env.CAMPAIGN_STORAGE_KEY),
-    entryAccessRequired: paymentMode === 'live' && Boolean(process.env.LIVE_ENTRY_ACCESS_CODE),
+    entryAccessRequired,
   });
 });
 
@@ -196,8 +197,8 @@ app.post('/api/payments/initiate', paymentRateLimit, asyncRoute(async (request, 
     if (request.body?.acceptedTerms !== true) {
       throw new Error('Confirm that you are 18+ and accept the drop terms before entering.');
     }
-    if (paymentMode === 'live' && !isValidEntryAccessCode(request.body?.accessCode)) {
-      return response.status(403).json({ error: 'Live checkout is currently limited to invited testers. Use your private test link.' });
+    if (!isValidEntryAccessCode(request.body?.accessCode)) {
+      return response.status(403).json({ error: 'Checkout is currently limited to invited testers. Use your private link.' });
     }
     if (paymentMode === 'live' && request.body?.expectedAmount !== ENTRY_PRICE) {
       return response.status(409).json({ error: 'The entry price has changed. Refresh the page before paying so you can confirm the current amount.' });

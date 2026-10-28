@@ -109,7 +109,7 @@ export function paystackSignature(rawBody, secretKey = process.env.PAYSTACK_SECR
   return crypto.createHmac('sha512', secretKey).update(rawBody).digest('hex');
 }
 
-export function isValidEntryAccessCode(provided, expected = process.env.LIVE_ENTRY_ACCESS_CODE) {
+export function isValidEntryAccessCode(provided, expected = process.env.ENTRY_ACCESS_CODE || process.env.LIVE_ENTRY_ACCESS_CODE) {
   if (!expected) return true;
   if (!provided) return false;
   const expectedBytes = Buffer.from(String(expected), 'utf8');

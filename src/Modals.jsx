@@ -130,7 +130,7 @@ export function PaymentModal({ open, onClose, campaign, entryAccessCode = '', on
         body: JSON.stringify({
           phone,
           email: campaign.paymentMode === 'live' ? email : undefined,
-          accessCode: campaign.paymentMode === 'live' ? entryAccessCode : undefined,
+          accessCode: campaign.entryAccessRequired ? entryAccessCode : undefined,
           expectedAmount: campaign.paymentMode === 'live' ? campaign.entryPrice : undefined,
           acceptedTerms: accepted,
         }),
@@ -219,7 +219,7 @@ export function PaymentModal({ open, onClose, campaign, entryAccessCode = '', on
           </label>
 
           {campaign.entryAccessRequired && !entryAccessCode && (
-            <div className="form-error" role="alert">Live checkout is currently limited to invited testers. Open your private test link in this tab.</div>
+            <div className="form-error" role="alert">This checkout is invite-only. Open your private link in this tab.</div>
           )}
           {error && <div className="form-error" role="alert">{error}</div>}
 
