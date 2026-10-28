@@ -93,7 +93,7 @@ export async function verifyPaystackTransaction(reference, { secretKey, fetchImp
   return paystackRequest(`/transaction/verify/${encodeURIComponent(reference)}`, { secretKey, fetchImpl });
 }
 
-export function validatePaystackTransaction(data, entry, { amount = 500 } = {}) {
+export function validatePaystackTransaction(data, entry, { amount = entry.amount } = {}) {
   if (!data || data.status !== 'success') return { valid: false, reason: 'Paystack has not confirmed a successful payment.' };
   if (data.reference !== entry.paystackReference) return { valid: false, reason: 'The Paystack reference does not match this entry.' };
   if (data.domain !== 'live') return { valid: false, reason: 'The transaction is not a live Paystack payment.' };

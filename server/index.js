@@ -199,6 +199,9 @@ app.post('/api/payments/initiate', paymentRateLimit, asyncRoute(async (request, 
     if (paymentMode === 'live' && !isValidEntryAccessCode(request.body?.accessCode)) {
       return response.status(403).json({ error: 'Live checkout is currently limited to invited testers. Use your private test link.' });
     }
+    if (paymentMode === 'live' && request.body?.expectedAmount !== ENTRY_PRICE) {
+      return response.status(409).json({ error: 'The entry price has changed. Refresh the page before paying so you can confirm the current amount.' });
+    }
     const phone = normalizePhone(request.body?.phone);
 
     if (paymentMode === 'demo') {
@@ -227,7 +230,7 @@ app.post('/api/payments/initiate', paymentRateLimit, asyncRoute(async (request, 
     const charge = await initiatePaystackMpesa({
       phone,
       email,
-      amount: ENTRY_PRICE,
+      amount: entry.amount,
       entryId: entry.id,
       campaignId: CAMPAIGN_ID,
       reference: entry.paystackReference,

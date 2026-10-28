@@ -38,7 +38,7 @@ function localRequest(server, { route, body = null, method = 'GET' }) {
   });
 }
 
-test('invite-only live checkout blocks public visitors before Paystack or storage mutation', async () => {
+test('live checkout blocks missing access codes and stale prices before Paystack or storage mutation', async () => {
   const server = await new Promise((resolve) => {
     const listener = app.listen(0, '127.0.0.1', () => resolve(listener));
   });
@@ -67,6 +67,22 @@ test('invite-only live checkout blocks public visitors before Paystack or storag
       });
       assert.equal(response.status, 403);
       assert.match(response.body.error, /invited testers/);
+    }
+
+    for (const expectedAmount of [undefined, campaign.body.entryPrice + 1]) {
+      const response = await localRequest(server, {
+        method: 'POST',
+        route: '/api/payments/initiate',
+        body: JSON.stringify({
+          phone: '0712345678',
+          email: 'customer@example.com',
+          acceptedTerms: true,
+          accessCode: 'correct-private-test-code',
+          expectedAmount,
+        }),
+      });
+      assert.equal(response.status, 409);
+      assert.match(response.body.error, /price has changed/);
     }
     assert.equal(networkCalls, 0);
     const stored = JSON.parse(fs.readFileSync(dataFile, 'utf8'));

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { ENTRY_PRICE, markEntryPaid } from './campaign.js';
+import { markEntryPaid } from './campaign.js';
 import { validatePaystackTransaction, verifyPaystackTransaction } from './paystack.js';
 
 function findEntry(state, entryId) {
@@ -23,7 +23,9 @@ export function applyPaystackTransaction(state, entryId, data) {
     return entry;
   }
 
-  const validation = validatePaystackTransaction(data, entry, { amount: ENTRY_PRICE });
+  // Verify the amount locked into this entry at checkout, not a possibly
+  // changed campaign-wide price during a later webhook or reconciliation run.
+  const validation = validatePaystackTransaction(data, entry, { amount: entry.amount });
   if (!validation.valid) {
     entry.paymentStatus = 'review';
     entry.paymentReference = data.reference;

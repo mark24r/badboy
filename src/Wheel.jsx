@@ -45,7 +45,7 @@ function easeSpin(progress) {
     : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 }
 
-export default function Wheel({ rotation, duration, spinning, canSpin, bonus, closed, onSpin }) {
+export default function Wheel({ rotation, duration, spinning, canSpin, bonus, closed, onSpin, entryPrice }) {
   const rotorRef = useRef(null);
   const pointerRef = useRef(null);
   const currentRotation = useRef(rotation);
@@ -156,7 +156,7 @@ export default function Wheel({ rotation, duration, spinning, canSpin, bonus, cl
         className={`wheel-hub ${bonus && canSpin ? 'is-bonus' : ''}`}
         onClick={onSpin}
         disabled={spinning || closed}
-        aria-label={closed ? 'Drop closed' : canSpin ? `${bonus ? 'Use your free spin' : 'Spin your paid entry'} now` : 'Enter the giveaway for 500 Kenyan shillings'}
+        aria-label={closed ? 'Drop closed' : canSpin ? `${bonus ? 'Use your free spin' : 'Spin your paid entry'} now` : `Enter the giveaway for ${entryPrice} Kenyan shillings`}
       >
         {spinning ? (
           <>
@@ -176,7 +176,7 @@ export default function Wheel({ rotation, duration, spinning, canSpin, bonus, cl
         ) : (
           <>
             <span className="hub-enter">ENTER</span>
-            <span className="hub-price">KES 500</span>
+            <span className="hub-price">KES {entryPrice}</span>
           </>
         )}
       </button>

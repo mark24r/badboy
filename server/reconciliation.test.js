@@ -36,7 +36,7 @@ function successfulTransaction(entry, overrides = {}) {
     id: 123456,
     status: 'success',
     reference: entry.paystackReference,
-    amount: 50_000,
+    amount: Math.round(entry.amount * 100),
     currency: 'KES',
     channel: 'mobile_money',
     domain: 'live',
@@ -74,6 +74,23 @@ test('reconciliation confirms a pending payment once and repeated runs stay idem
   assert.equal(calls, 1);
   assert.equal(paidEntries(state).length, 1);
   assert.equal(state.entries.length, 1);
+});
+
+test('reconciliation verifies the actual amount stored on a KES 50 entry', async () => {
+  const state = createCampaign();
+  const entry = makeLiveEntry(state);
+  entry.amount = 50;
+  const store = makeStore(state);
+
+  const summary = await reconcilePayments({
+    store,
+    verifyTransaction: async () => successfulTransaction(entry, { amount: 5_000 }),
+    logger: silentLogger,
+  });
+  assert.equal(summary.paid, 1);
+  assert.equal(entry.paymentStatus, 'paid');
+  assert.equal(entry.amount, 50);
+  assert.equal(entry.entryNumber, 1);
 });
 
 test('reconciliation can recover an entry left in ambiguous review', async () => {

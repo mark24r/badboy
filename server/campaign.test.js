@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  DEFAULT_ENTRY_PRICE,
   ENTRY_PRICE,
   GENESIS_HASH,
   MAX_ENTRIES_PER_PHONE,
@@ -19,6 +20,7 @@ import {
   normalizePhone,
   playerEntry,
   publicCampaign,
+  resolveEntryPrice,
   revealEntry,
 } from './campaign.js';
 
@@ -26,6 +28,24 @@ function paidEntry(state, phone = '0712345678') {
   const pending = createPendingEntry(state, phone);
   return markEntryPaid(state, pending.id, { mpesaReceipt: 'TEST123' });
 }
+
+test('entry price defaults to KES 500 and accepts only positive whole-KES overrides', () => {
+  assert.equal(DEFAULT_ENTRY_PRICE, 500);
+  assert.equal(resolveEntryPrice(null), 500);
+  assert.equal(resolveEntryPrice(''), 500);
+  assert.equal(resolveEntryPrice('50'), 50);
+  assert.throws(() => resolveEntryPrice('0'), /positive whole-KES/);
+  assert.throws(() => resolveEntryPrice('50.5'), /positive whole-KES/);
+  assert.throws(() => resolveEntryPrice('-50'), /positive whole-KES/);
+});
+
+test('legacy KES 500 pool commitments stay stable without a stored entry-price field', () => {
+  const state = createCampaign();
+  state.entryPrice = DEFAULT_ENTRY_PRICE;
+  state.commitment = computeCommitment(state);
+  delete state.entryPrice;
+  assert.equal(computeCommitment(state), state.commitment);
+});
 
 test('normalizes Kenyan mobile numbers and rejects invalid numbers', () => {
   assert.equal(normalizePhone('0712 345 678'), '254712345678');

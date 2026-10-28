@@ -85,7 +85,7 @@ When `DATABASE_URL` or `POSTGRES_URL` is present, the app stores the campaign in
 
 ## Paystack M-Pesa integration
 
-The server includes a Paystack [Charge API](https://paystack.com/docs/api/charge/) integration for Kenyan M-Pesa. Demo mode never calls Paystack and never charges a phone. Live mode collects the customer's email and M-Pesa number, sends **KES 500 as 50,000 currency subunits**, and attaches a unique entry reference and metadata to the charge.
+The server includes a Paystack [Charge API](https://paystack.com/docs/api/charge/) integration for Kenyan M-Pesa. Demo mode never calls Paystack and never charges a phone. Live mode collects the customer's email and M-Pesa number, defaults to **KES 500 as 50,000 currency subunits**, and attaches a unique entry reference and metadata to the charge. `ENTRY_PRICE_KES` can override the current checkout price in whole KES; for example, `50` sends exactly **5,000 subunits**. Changing it changes the price for every visitor to that deployment, so restore it to `500` after any approved temporary public test.
 
 For a properly hosted live environment, copy `.env.example` to `.env` and configure:
 
@@ -93,6 +93,7 @@ For a properly hosted live environment, copy `.env.example` to `.env` and config
 PAYMENTS_MODE=live
 DATABASE_URL=postgresql://...
 PAYSTACK_SECRET_KEY=sk_live_...
+ENTRY_PRICE_KES=500
 CRON_SECRET=generate-a-long-random-secret
 ```
 
@@ -110,7 +111,9 @@ POST /api/payments/paystack/router
 
 The shared router verifies the Paystack signature, forwards the unchanged raw body and signature to the existing receiver, and processes Detty entries only in live mode. In demo mode it can forward the other project's events without changing Detty's campaign. A forwarding failure returns a retryable error; successful Detty processing remains idempotent across retries. Keep the former URL available so the dashboard change can be rolled back if the existing project does not acknowledge forwarded events. For deployment verification, the authenticated demo-only `POST /api/cron/router-self-test` endpoint sends a non-payment `detty.router.self_test` event containing only a timestamp through the full route; it is disabled in live mode.
 
-The webhook follows Paystack's [signed-webhook guidance](https://paystack.com/docs/payments/webhooks/): the raw request body is checked with HMAC-SHA512 before processing. Both webhook confirmation and throttled status checks independently call Paystack's transaction verification API. A spin unlocks only after the server confirms a live, successful mobile-money transaction with the exact entry reference, metadata, KES currency, and **50,000-subunit** amount. Mismatches go to manual review rather than receiving an entry.
+The webhook follows Paystack's [signed-webhook guidance](https://paystack.com/docs/payments/webhooks/): the raw request body is checked with HMAC-SHA512 before processing. Both webhook confirmation and throttled status checks independently call Paystack's transaction verification API. A spin unlocks only after the server confirms a live, successful mobile-money transaction with the exact entry reference, metadata, KES currency, and amount stored on that entry. Mismatches go to manual review rather than receiving an entry. This per-entry check remains correct if the current price changes while an older payment is still pending.
+
+The current checkout price is exposed as `entryPrice`. Live checkout sends that displayed amount as `expectedAmount`; the server rejects a stale page with HTTP 409 instead of charging a different amount. Existing pools retain their original committed price (`committedEntryPrice`, defaulting to KES 500 for legacy rows), so a temporary price override does not rewrite the published outcome-pool commitment. New pools commit to the price configured when they are created.
 
 `GET /api/cron/reconcile` provides an additional automatic fallback for pending or ambiguous payments. It requires `CRON_SECRET`, independently verifies each Paystack reference, applies updates inside the same transactional store, retries temporary verification failures, and leaves successful mismatches in manual review. Repetitions are idempotent and cannot allocate a second entry. `vercel.json` schedules it daily at 01:00 UTC (04:00 in Nairobi); Vercel Hobby permits only daily cron jobs and may run them up to an hour later. On Vercel Pro, the schedule can be increased to every five minutes. Webhooks and customer status checks remain the faster confirmation paths.
 

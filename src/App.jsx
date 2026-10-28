@@ -198,7 +198,7 @@ export default function App() {
         <div className="spin-title">
           <div className="drop-label"><span className={`live-dot ${campaign.status === 'closed' ? 'closed' : ''}`} /> DECEMBER 2026 <i /> NAIROBI</div>
           <h1><span>Detty<br className="mobile-title-break" /> Dezemba</span>Ticket spin.</h1>
-          <p>1 Regular ticket · 1 VIP ticket · 4 Free Spins · KES 500 per paid entry</p>
+          <p>1 Regular ticket · 1 VIP ticket · 4 Free Spins · KES {campaign.entryPrice} per paid entry</p>
         </div>
 
         <section className="focus-card" id="spin-card" aria-label="Detty Dezemba ticket spinning wheel">
@@ -216,6 +216,7 @@ export default function App() {
             bonus={canSpin && activeEntry.amount === 0}
             closed={campaign.status === 'closed' && !canSpin}
             onSpin={handleSpin}
+            entryPrice={campaign.entryPrice}
           />
 
           <div className="spin-status" aria-live="polite">
@@ -224,7 +225,7 @@ export default function App() {
             ) : canSpin ? (
               <><CheckCircle2 size={16} /> {activeEntry.amount === 0 ? 'Free spin' : 'Paid entry'} {activeEntry.receipt} is ready{activeEntry.amount === 0 ? ' — no payment needed.' : ' to reveal.'}</>
             ) : (
-              <><WalletCards size={16} /> KES 500 per paid entry · Any ticket {campaign.ticketOdds} · Any reward {campaign.startingOdds}</>
+              <><WalletCards size={16} /> KES {campaign.entryPrice} per paid entry · Any ticket {campaign.ticketOdds} · Any reward {campaign.startingOdds}</>
             )}
           </div>
           <p className="wheel-disclaimer">Seven illustrated slots · Starting No Win {noWinPercentage}% · The committed {campaign.totalEntries}-position pool decides each outcome.</p>
@@ -245,7 +246,7 @@ export default function App() {
             disabled={spinning || (campaign.status === 'closed' && !canSpin)}
           >
             {spinning ? <LoaderCircle size={18} className="spin-icon" /> : <Ticket size={18} />}
-            {spinning ? 'Revealing your result…' : canSpin ? (activeEntry.amount === 0 ? 'Use my free spin' : 'Spin my paid entry') : 'Pay KES 500 & spin'}
+            {spinning ? 'Revealing your result…' : canSpin ? (activeEntry.amount === 0 ? 'Use my free spin' : 'Spin my paid entry') : `Pay KES ${campaign.entryPrice} & spin`}
             {!spinning && <ArrowRight size={18} />}
           </button>
 

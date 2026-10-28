@@ -12,7 +12,7 @@ import {
 
 const secretKey = 'sk_live_unit_test_only';
 const reference = 'DD-entry-1';
-const entry = { id: 'entry-1', paystackReference: reference };
+const entry = { id: 'entry-1', paystackReference: reference, amount: 500 };
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -77,6 +77,25 @@ test('creates a Paystack M-Pesa charge with the exact KES subunit amount and ent
   assert.deepEqual(payload.metadata, { entryId: entry.id, campaignId: 'detty-dezemba-dec-2026' });
 });
 
+test('sends a KES 50 test charge as exactly 5,000 subunits', async () => {
+  let payload;
+  await initiatePaystackMpesa({
+    phone: '254712345678',
+    email: 'user@example.com',
+    amount: 50,
+    entryId: entry.id,
+    campaignId: 'detty-dezemba-dec-2026',
+    reference,
+    secretKey,
+    fetchImpl: async (url, options) => {
+      payload = JSON.parse(options.body);
+      return jsonResponse({ status: true, data: { reference, status: 'pay_offline' } });
+    },
+  });
+  assert.equal(payload.amount, 5_000);
+  assert.equal(payload.currency, 'KES');
+});
+
 test('formats Kenyan 01 and 07 M-Pesa numbers with one international prefix', async () => {
   for (const [phone, expected] of [
     ['254112345678', '+254112345678'],
@@ -129,6 +148,13 @@ test('verifies a transaction by reference and accepts only the matching live pay
   assert.equal(requestedUrl, `https://api.paystack.co/transaction/verify/${reference}`);
   assert.equal(data.id, 123456);
   assert.deepEqual(validatePaystackTransaction(data, entry), { valid: true });
+});
+
+test('validates against the entry amount when a KES 50 price override is active', () => {
+  const fiftyShillingEntry = { ...entry, amount: 50 };
+  const transaction = { ...successfulTransaction(), amount: 5_000 };
+  assert.deepEqual(validatePaystackTransaction(transaction, fiftyShillingEntry), { valid: true });
+  assert.equal(validatePaystackTransaction({ ...transaction, amount: 50_000 }, fiftyShillingEntry).valid, false);
 });
 
 test('rejects successful-looking transactions with mismatched payment details', () => {

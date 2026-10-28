@@ -10,7 +10,22 @@ export const TOTAL_VIP_TICKETS = 1;
 export const TOTAL_WINNERS = TOTAL_REGULAR_TICKETS + TOTAL_VIP_TICKETS;
 export const TOTAL_FREE_SPINS = 4;
 export const TOTAL_REWARDS = TOTAL_WINNERS + TOTAL_FREE_SPINS;
-export const ENTRY_PRICE = 500;
+export const DEFAULT_ENTRY_PRICE = 500;
+
+export function resolveEntryPrice(value = process.env.ENTRY_PRICE_KES) {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return DEFAULT_ENTRY_PRICE;
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error('ENTRY_PRICE_KES must be a positive whole-KES amount.');
+  }
+  const amount = Number(normalized);
+  if (!Number.isSafeInteger(amount) || amount < 1) {
+    throw new Error('ENTRY_PRICE_KES must be a positive whole-KES amount.');
+  }
+  return amount;
+}
+
+export const ENTRY_PRICE = resolveEntryPrice();
 export const MAX_ENTRIES_PER_PHONE = 3;
 export const GENESIS_HASH = '0'.repeat(64);
 
@@ -56,7 +71,9 @@ export function poolPayload(state) {
     schema: POOL_SCHEMA,
     campaignId: state.campaignId,
     currency: 'KES',
-    entryPrice: ENTRY_PRICE,
+    // Legacy pools committed to the original KES 500 price. Keep that value
+    // stable even when the current checkout price is temporarily overridden.
+    entryPrice: state.entryPrice ?? DEFAULT_ENTRY_PRICE,
     totalEntries: TOTAL_ENTRIES,
     totalWinners: TOTAL_WINNERS,
     totalRegularTickets: TOTAL_REGULAR_TICKETS,
@@ -185,6 +202,7 @@ export function createCampaign({ seedDemo = false, seedCount = 10 } = {}) {
     version: 5,
     poolSchema: POOL_SCHEMA,
     campaignId: CAMPAIGN_ID,
+    entryPrice: ENTRY_PRICE,
     createdAt: new Date(now - (seedDemo ? (seedCount + 2) * 8 * 60_000 : 0)).toISOString(),
     pool,
     poolSalt: crypto.randomBytes(32).toString('hex'),
@@ -448,6 +466,7 @@ export function publicCampaign(state) {
     title: 'Detty Dezemba Festival',
     prize: '1 Regular ticket + 1 VIP ticket + 4 Free Spins',
     entryPrice: ENTRY_PRICE,
+    committedEntryPrice: state.entryPrice ?? DEFAULT_ENTRY_PRICE,
     currency: 'KES',
     totalEntries: TOTAL_ENTRIES,
     totalWinners: TOTAL_WINNERS,

@@ -131,6 +131,7 @@ export function PaymentModal({ open, onClose, campaign, entryAccessCode = '', on
           phone,
           email: campaign.paymentMode === 'live' ? email : undefined,
           accessCode: campaign.paymentMode === 'live' ? entryAccessCode : undefined,
+          expectedAmount: campaign.paymentMode === 'live' ? campaign.entryPrice : undefined,
           acceptedTerms: accepted,
         }),
       });
@@ -169,7 +170,7 @@ export function PaymentModal({ open, onClose, campaign, entryAccessCode = '', on
               <strong>Detty Dezemba ticket drop</strong>
               <span>1 entry · 1 spin · instant result</span>
             </div>
-            <b>KES 500</b>
+            <b>KES {campaign.entryPrice}</b>
           </div>
 
           <label className="field-label" htmlFor="mpesa-phone">M-Pesa phone number</label>
@@ -228,7 +229,7 @@ export function PaymentModal({ open, onClose, campaign, entryAccessCode = '', on
             disabled={!accepted || submitting || campaign.status === 'closed' || (campaign.entryAccessRequired && !entryAccessCode)}
           >
             {submitting ? <LoaderCircle size={19} className="spin-icon" /> : <LockKeyhole size={18} />}
-            {submitting ? 'Starting secure payment…' : 'Pay KES 500 with Paystack'}
+            {submitting ? 'Starting secure payment…' : `Pay KES ${campaign.entryPrice} with Paystack`}
             {!submitting && <ArrowRight size={18} />}
           </button>
           <div className="pin-warning"><ShieldCheck size={15} /> Your M-Pesa PIN is only entered on your phone. Never type it here.</div>
@@ -245,7 +246,7 @@ export function PaymentModal({ open, onClose, campaign, entryAccessCode = '', on
           <h2>Check your phone</h2>
           <p>{campaign.paymentMode === 'demo'
             ? 'We’re simulating a successful Paystack M-Pesa approval. You will not be charged.'
-            : `Approve the KES 500 prompt on ${entry.phone}. Paystack will confirm your payment.`}</p>
+            : `Approve the KES ${entry.amount} prompt on ${entry.phone}. Paystack will confirm your payment.`}</p>
           <div className="waiting-line"><LoaderCircle size={18} className="spin-icon" /> Waiting for Paystack confirmation</div>
           <div className="pin-warning"><ShieldCheck size={15} /> This website will never ask for your M-Pesa PIN.</div>
         </div>
@@ -443,7 +444,7 @@ const legalContent = {
     eyebrow: 'DROP RULES',
     title: 'Plain-language terms.',
     sections: [
-      ['Entry', 'This demonstration charges no money. For an approved live drop, each confirmed KES 500 Paystack M-Pesa payment receives one paid entry and one outcome reveal. Entrants must be 18 or older, with a maximum of three paid entries per phone number. Free Spins create KES 0 bonus entries and do not use another paid-entry slot.'],
+      ['Entry', 'This demonstration charges no money. For an approved live drop, each confirmed Paystack M-Pesa payment for the entry price displayed at checkout receives one paid entry and one outcome reveal. Entrants must be 18 or older, with a maximum of three paid entries per phone number. Free Spins create KES 0 bonus entries and do not use another paid-entry slot.'],
       ['Prizes and results', 'There is exactly one Regular Detty Dezemba Festival ticket, one VIP ticket and four Free Spins in a fixed pool of 120 positions, alongside 114 No-Win positions. Starting odds are 1 in 120 for each ticket type, 1 in 60 for any ticket, and 1 in 20 for any reward. A winning receipt shows the prize reference. Winners must be reachable on their payment number and complete reasonable identity and eligibility checks before fulfilment.'],
       ['Refunds and cancellation', 'A revealed, valid entry is not refundable simply because it did not win. If the operator cancels the drop, affected paid entrants should receive a refund to the original payment number. Final launch terms must be reviewed by qualified Kenyan counsel.'],
     ],
