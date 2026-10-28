@@ -73,8 +73,31 @@ test('creates a Paystack M-Pesa charge with the exact KES subunit amount and ent
   assert.equal(payload.currency, 'KES');
   assert.equal(payload.email, 'user@example.com');
   assert.equal(payload.reference, reference);
-  assert.deepEqual(payload.mobile_money, { phone: '254712345678', provider: 'mpesa' });
+  assert.deepEqual(payload.mobile_money, { phone: '+254712345678', provider: 'mpesa' });
   assert.deepEqual(payload.metadata, { entryId: entry.id, campaignId: 'detty-dezemba-dec-2026' });
+});
+
+test('formats Kenyan 01 and 07 M-Pesa numbers with one international prefix', async () => {
+  for (const [phone, expected] of [
+    ['254112345678', '+254112345678'],
+    ['+254712345678', '+254712345678'],
+  ]) {
+    let payload;
+    await initiatePaystackMpesa({
+      phone,
+      email: 'user@example.com',
+      amount: 500,
+      entryId: entry.id,
+      campaignId: 'campaign',
+      reference,
+      secretKey,
+      fetchImpl: async (url, options) => {
+        payload = JSON.parse(options.body);
+        return jsonResponse({ status: true, data: { reference, status: 'pay_offline' } });
+      },
+    });
+    assert.equal(payload.mobile_money.phone, expected);
+  }
 });
 
 test('treats a mismatched charge reference as ambiguous and blocks automatic entry', async () => {

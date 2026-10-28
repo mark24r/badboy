@@ -69,7 +69,7 @@ export async function initiatePaystackMpesa({
       currency: 'KES',
       reference,
       mobile_money: {
-        phone,
+        phone: String(phone).startsWith('+') ? String(phone) : `+${phone}`,
         provider: 'mpesa',
       },
       metadata: {
