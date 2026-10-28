@@ -1,16 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { LoaderCircle, LockKeyhole, Sparkles } from 'lucide-react';
 
-// Keep the original wheel slots, add Free Spin, and place VIP between Free Spin and Regular. The committed
+// Distribute the prize and No-Win slots around the wheel. The committed
 // 60-position pool, not the number of illustrated slots, decides each result.
 export const WHEEL_SEGMENTS = [
   { outcome: 'win', label: 'REGULAR TICKET' },
   { outcome: 'no-win', label: 'NO WIN' },
   { outcome: 'no-win', label: 'NO WIN' },
-  { outcome: 'no-win', label: 'NO WIN' },
-  { outcome: 'no-win', label: 'NO WIN' },
   { outcome: 'free-spin', label: 'FREE SPIN' },
+  { outcome: 'no-win', label: 'NO WIN' },
   { outcome: 'vip-win', label: 'VIP TICKET' },
+  { outcome: 'no-win', label: 'NO WIN' },
 ];
 const SEGMENT_ANGLE = 360 / WHEEL_SEGMENTS.length;
 

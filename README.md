@@ -22,7 +22,7 @@ npm start         # serve the API and built frontend on PORT (default 3000)
 
 - M-Pesa phone checkout with Kenyan number validation
 - Server-confirmed payment state; the browser cannot mark an entry paid
-- Original-style seven-slot wheel with Regular Ticket, VIP Ticket between Free Spin and Regular, four No Win, and one Free Spin slot
+- Original-style seven-slot wheel with Regular Ticket, Free Spin and VIP Ticket separated by four distributed No Win slots
 - Ready-to-spin hub pulse, segment-synchronised pointer ticks, dramatic slowdown, and reduced-motion support
 - Gold win flash, confetti, and a branded festival-ticket card with the winning receipt
 - Exactly one Regular ticket, one VIP ticket, four Free Spins, current unallocated pool, and starting odds
@@ -70,7 +70,7 @@ The spotlight component itself needs no image assets, context providers, or addi
 7. Each completed result, including a bonus result, contains the previous result hash. Any edited historical result breaks the subsequent chain.
 8. Once the drop closes and all allocated entries have revealed, the original pool and salt become available at `/api/campaign/reveal` for independent commitment verification. Incompatible saved pools use an explicit schema check; simulated data is archived before a fresh pool is created, while live-mode data is never automatically reset.
 
-The wheel preserves the original multi-slot presentation with **seven illustrated slots**: Regular Ticket, four No Win, Free Spin, and VIP Ticket placed between Free Spin and Regular Ticket. Slot size is illustrative rather than a probability map; the committed 60-position pool determines the server-issued outcome. Starting odds are **1 in 60 for each ticket type**, **1 in 30 for any ticket**, and **1 in 10 for any reward**, and remaining odds change as pool positions are allocated.
+The wheel preserves the original multi-slot presentation with **seven illustrated slots**: Regular Ticket, two No Win, Free Spin, No Win, VIP Ticket, and No Win. This distributes the No-Win positions around the wheel instead of grouping them together. Slot size is illustrative rather than a probability map; the committed 60-position pool determines the server-issued outcome. Starting odds are **1 in 60 for each ticket type**, **1 in 30 for any ticket**, and **1 in 10 for any reward**, and remaining odds change as pool positions are allocated.
 
 ## Deploy to Vercel (hosted demo)
 
